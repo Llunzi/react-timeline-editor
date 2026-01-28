@@ -12,6 +12,7 @@ const TimelineEditor = () => {
   return (
     <div className="timeline-editor-example0">
       <Timeline
+        theme="light"
         onChange={setData}
         editorData={data}
         effects={mockEffect}

@@ -246,6 +246,8 @@ export interface TimelineState {
  * @interface TimelineProp
  */
 export interface TimelineEditor extends EditData {
+  className?: string;
+  theme?: 'light' | 'dark';
   /**
    * @description 编辑区域距离顶部滚动距离 (请使用ref.setScrollTop代替)
    * @deprecated

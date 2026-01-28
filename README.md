@@ -9,6 +9,8 @@
 
 ```bash
 npm install @xzdarcy/react-timeline-editor
+
+sense-react-timeline-editor
 ```
 
 ```ts

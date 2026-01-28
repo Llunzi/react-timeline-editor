@@ -12,7 +12,7 @@ import { TimeArea } from './time_area/time_area';
 
 export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, ref) => {
   const checkedProps = checkProps(props);
-  const { style } = props;
+  const { style, className, theme } = props;
   let {
     effects,
     editorData: data,
@@ -167,8 +167,10 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
     }
   }, []);
 
+  console.log('theme', theme);
+
   return (
-    <div ref={domRef} style={style} className={`${PREFIX} ${disableDrag ? PREFIX + '-disable' : ''}`}>
+    <div ref={domRef} style={style} className={`${className || ''} ${theme || ''} ${PREFIX} ${disableDrag ? PREFIX + '-disable' : ''}`}>
       <ScrollSync ref={scrollSync}>
         {({ scrollLeft, scrollTop, onScroll }) => (
           <>

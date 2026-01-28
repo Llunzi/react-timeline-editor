@@ -9,6 +9,7 @@ import './cursor.less';
 
 /** 动画时间轴组件参数 */
 export type CursorProps = CommonProp & {
+  theme?: string;
   /** 距离左侧滚动距离 */
   scrollLeft: number;
   /** 设置光标位置 */
@@ -22,6 +23,7 @@ export type CursorProps = CommonProp & {
 };
 
 export const Cursor: FC<CursorProps> = ({
+  theme,
   disableDrag,
   cursorTime,
   setCursor,
@@ -50,6 +52,7 @@ export const Cursor: FC<CursorProps> = ({
 
   return (
     <RowDnd
+      top={theme === 'light' ? 40 : 0}
       start={startLeft}
       ref={rowRnd}
       parentRef={areaRef}
@@ -92,12 +95,17 @@ export const Cursor: FC<CursorProps> = ({
       }}
     >
       <div className={prefix('cursor')}>
-        <svg className={prefix('cursor-top')} width="8" height="12" viewBox="0 0 8 12" fill="none">
+        <svg className={prefix('cursor-top')} xmlns="http://www.w3.org/2000/svg" width="8" height="5" viewBox="0 0 8 5" fill="none">
+          <path d="M7.11914 0C7.29043 3.70978e-05 7.38258 0.201535 7.27051 0.331055L3.81055 4.3252C3.73079 4.41725 3.58853 4.41727 3.50879 4.3252L0.0488281 0.331055C-0.06309 0.201578 0.0290597 0.000178682 0.200195 0H7.11914Z" fill={
+            theme === 'light' ? '#111111' : '#5297FF'
+          }/>
+        </svg>
+        {/* <svg className={prefix('cursor-top')} width="8" height="12" viewBox="0 0 8 12" fill="none">
           <path
             d="M0 1C0 0.447715 0.447715 0 1 0H7C7.55228 0 8 0.447715 8 1V9.38197C8 9.76074 7.786 10.107 7.44721 10.2764L4.44721 11.7764C4.16569 11.9172 3.83431 11.9172 3.55279 11.7764L0.552786 10.2764C0.214002 10.107 0 9.76074 0 9.38197V1Z"
             fill="#5297FF"
           />
-        </svg>
+        </svg> */}
         <div className={prefix('cursor-area')} />
       </div>
     </RowDnd>
