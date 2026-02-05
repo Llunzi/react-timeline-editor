@@ -15,6 +15,17 @@
 
   &-edit-area {
     flex: 1 1 auto;
+    &.no-flex {
+      flex: 0 0 auto;
+    }
+    &.overflow-hidden {
+      overflow: hidden;
+
+      .ReactVirtualized__Grid { 
+         overflow: hidden !important;
+         height: initial !important;
+      }
+    }
     margin-top: 10px;
     overflow: hidden;
     position: relative;

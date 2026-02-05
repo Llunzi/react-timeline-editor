@@ -44,4 +44,6 @@ export interface TimelineRow {
   selected?: boolean;
   /** 行的扩展类名 */
   classNames?: string[];
+  /** 行的类型 */
+  type?: string;
 }

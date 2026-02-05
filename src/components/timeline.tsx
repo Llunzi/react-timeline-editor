@@ -9,6 +9,7 @@ import { Cursor } from './cursor/cursor';
 import { EditArea } from './edit_area/edit_area';
 import './timeline.less';
 import { TimeArea } from './time_area/time_area';
+import groupBy from 'lodash/groupBy';
 
 export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, ref) => {
   const checkedProps = checkProps(props);
@@ -47,6 +48,10 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
   // 当前时间轴宽度
   const [width, setWidth] = useState(Number.MAX_SAFE_INTEGER);
 
+  const groupedData: Record<string, TimelineRow[]> = groupBy(editorData, 'type');
+  const areaCount = Object.keys(groupedData).length;
+  const keys = Object.keys(groupedData);
+
   /** 监听数据变化 */
   useLayoutEffect(() => {
     handleSetScaleCount(getScaleCountByRows(data, { scale }));
@@ -77,10 +82,11 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
   };
 
   /** 处理主动数据变化 */
-  const handleEditorDataChange = (editorData: TimelineRow[]) => {
-    const result = onChange(editorData);
+  const handleEditorDataChange = (updatedData: TimelineRow[]) => {
+    const result = onChange(updatedData);
     if (result !== false) {
-      engineRef.current.data = editorData;
+      setEditorData(updatedData);
+      engineRef.current.data = updatedData;
       autoReRender && engineRef.current.reRender();
     }
   };
@@ -167,8 +173,6 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
     }
   }, []);
 
-  console.log('theme', theme);
-
   return (
     <div ref={domRef} style={style} className={`${className || ''} ${theme || ''} ${PREFIX} ${disableDrag ? PREFIX + '-disable' : ''}`}>
       <ScrollSync ref={scrollSync}>
@@ -186,24 +190,70 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
               onScroll={onScroll}
               scrollLeft={scrollLeft}
             />
-            <EditArea
-              {...checkedProps}
-              timelineWidth={width}
-              ref={(ref) => ((areaRef.current as any) = ref?.domRef.current)}
-              disableDrag={disableDrag || isPlaying}
-              editorData={editorData}
-              cursorTime={cursorTime}
-              scaleCount={scaleCount}
-              setScaleCount={handleSetScaleCount}
-              scrollTop={scrollTop}
-              scrollLeft={scrollLeft}
-              setEditorData={handleEditorDataChange}
-              deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
-              onScroll={(params) => {
-                onScroll(params);
-                onScrollVertical && onScrollVertical(params);
-              }}
-            />
+
+            {areaCount === 1 ? (
+              <EditArea
+                {...checkedProps}
+                timelineWidth={width}
+                ref={(ref) => ((areaRef.current as any) = ref?.domRef.current)}
+                disableDrag={disableDrag || isPlaying}
+                editorData={editorData}
+                cursorTime={cursorTime}
+                scaleCount={scaleCount}
+                setScaleCount={handleSetScaleCount}
+                scrollTop={scrollTop}
+                scrollLeft={scrollLeft}
+                setEditorData={handleEditorDataChange}
+                deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
+                onScroll={(params) => {
+                  onScroll(params);
+                  onScrollVertical && onScrollVertical(params);
+                }}
+              />
+            ) : null}
+            {areaCount > 1
+              ? Object.keys(groupedData).map((key, index) => {
+                  const handleGroupDataChange = (updatedData: TimelineRow[]) => {
+                    const mergedData = editorData.filter(item => String(item.type) !== key).concat(updatedData);
+                    const sortedMergedData = [...mergedData].sort((a, b) => {
+                      const indexA = keys.indexOf(String(a.type));
+                      const indexB = keys.indexOf(String(b.type));
+                      return indexA - indexB;
+                    });
+                    const result = onChange(sortedMergedData);
+                    if (result !== false) {
+                      setEditorData(sortedMergedData);
+                      engineRef.current.data = sortedMergedData;
+                      autoReRender && engineRef.current.reRender();
+                    }
+                  };
+                  
+                  return (
+                    <EditArea
+                      key={key}
+                      isMulti={areaCount > 1}
+                      className={index !== 0 ? `no-flex ${key}` : `overflow-hidden ${key}`}
+                      {...checkedProps}
+                      timelineWidth={width}
+                      ref={(ref) => ((areaRef.current as any) = ref?.domRef.current)}
+                      disableDrag={disableDrag || isPlaying}
+                      editorData={groupedData[key]}
+                      cursorTime={cursorTime}
+                      scaleCount={scaleCount}
+                      setScaleCount={handleSetScaleCount}
+                      scrollTop={scrollTop}
+                      scrollLeft={scrollLeft}
+                      setEditorData={handleGroupDataChange}
+                      deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
+                      onScroll={(params) => {
+                        onScroll(params);
+                        onScrollVertical && onScrollVertical(params);
+                      }}
+                    />
+                  );
+                })
+              : null}
+
             {!hideCursor && (
               <Cursor
                 {...checkedProps}

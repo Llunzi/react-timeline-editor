@@ -11,6 +11,8 @@ import { EditRow } from './edit_row';
 import { useDragLine } from './hooks/use_drag_line';
 
 export type EditAreaProps = CommonProp & {
+  className?: string;
+  isMulti?: boolean;
   /** 距离左侧滚动距离 */
   scrollLeft: number;
   /** 距离顶部滚动距离 */
@@ -30,6 +32,8 @@ export interface EditAreaState {
 
 export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) => {
   const {
+    className,
+    isMulti = false,
     editorData,
     rowHeight,
     scaleWidth,
@@ -152,9 +156,14 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
     gridRef.current.recomputeGridSize();
   }, [editorData]);
 
+  const _totalHeight = editorData.reduce((prev, cur) => prev + (cur.rowHeight || rowHeight), 0) + 32;
+
   return (
-    <div ref={editAreaRef} className={prefix('edit-area')}>
-      <AutoSizer>
+    <div ref={editAreaRef} className={prefix('edit-area') + ` ${className || ''}`} style={{
+      height: isMulti ? _totalHeight : 'unset', 
+      maxHeight: isMulti ? _totalHeight : 'unset'
+    }}>
+      <AutoSizer style={{ height: isMulti ? _totalHeight : 'unset' }}>
         {({ width, height }) => {
           // 获取全部高度
           let totalHeight = 0;
@@ -164,7 +173,7 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
             totalHeight += itemHeight;
             return itemHeight;
           });
-          if (totalHeight < height) {
+          if (totalHeight < height && !isMulti) {
             heights.push(height - totalHeight);
             if (heightRef.current !== height && heightRef.current >= 0) {
               setTimeout(() =>
@@ -189,6 +198,7 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
               overscanRowCount={10}
               overscanColumnCount={0}
               onScroll={(param) => {
+                console.log(param, 'onScroll');
                 onScroll(param);
               }}
             />
