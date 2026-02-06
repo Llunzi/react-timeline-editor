@@ -57,6 +57,7 @@ export const EditAction: FC<EditActionProps> = ({
 }) => {
   const rowRnd = useRef<RowRndApi>();
   const isDragWhenClick = useRef(false);
+  const originalPosition = useRef({ start: 0, end: 0 });
   const { id, maxEnd, minStart, end, start, selected, flexible = true, movable = true, effectId } = action;
 
   // 获取最大/最小 像素范围
@@ -105,6 +106,8 @@ export const EditAction: FC<EditActionProps> = ({
 
   //#region [rgba(100,120,156,0.08)] 回调
   const handleDragStart: RndDragStartCallback = () => {
+    // 保存原始位置
+    originalPosition.current = { start: action.start, end: action.end };
     onActionMoveStart && onActionMoveStart({ action, row });
   };
   const handleDrag: RndDragCallback = ({ left, width, top }) => {
@@ -188,11 +191,16 @@ export const EditAction: FC<EditActionProps> = ({
             const candidateStart = candidateEnd - duration;
             const distance = Math.abs(candidateStart - start);
             console.log('Candidate before first action:', candidateStart, '-', candidateEnd, 'distance:', distance);
-            if (distance < minDistance) {
+
+            if (candidateStart < 0) {
+              return { start, end, found: false };
+            }
+            // 检查候选位置的 start 是否小于 0
+            if (candidateStart >= 0 && distance < minDistance) {
               minDistance = distance;
               bestPosition = { start: candidateStart, end: candidateEnd };
               foundPosition = true;
-            }
+            } 
           }
         }
 
@@ -248,8 +256,11 @@ export const EditAction: FC<EditActionProps> = ({
     const adjustmentResult = checkAndAdjustCollision();
 
     if (!adjustmentResult.found) {
-      // 如果找不到合适位置,取消移动
-      console.warn('Cannot find suitable position, cancelling move');
+      // 如果找不到合适位置,回到原始位置
+      console.warn('Cannot find suitable position, reverting to original position');
+      // 恢复原始位置的transform
+      const originalTransform = parserTimeToTransform(originalPosition.current, { startLeft, scale, scaleWidth });
+      setTransform({ ...originalTransform, top: 0 });
       return;
     }
 
