@@ -23,6 +23,7 @@ export const mockData: TimelineRow[] = [
         effectId: "effect0",
       },
     ],
+    type: "image",
   },
   {
     id: "1",
@@ -34,19 +35,21 @@ export const mockData: TimelineRow[] = [
         effectId: "effect1",
       }
     ],
+    type: "audio",
   },
   {
     id: "2",
     actions: [
       {
         id: "action20",
-        flexible: false,
-        movable: false,
+        // flexible: false,
+        // movable: false,
         start: 3,
         end: 4,
         effectId: "effect0",
       },
     ],
+     type: "audio",
   },
   {
     id: "3",
@@ -55,14 +58,15 @@ export const mockData: TimelineRow[] = [
         id: "action30",
         start: 4,
         end: 4.5,
-        effectId: "effect1",
+        effectId: "effect0",
       },
       {
         id: "action31",
         start: 6,
         end: 8,
-        effectId: "effect1",
+        effectId: "effect0",
       },
     ],
+     type: "audio",
   },
 ];

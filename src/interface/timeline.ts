@@ -5,6 +5,7 @@ import { Emitter } from '../engine/emitter';
 import { EventTypes } from '../engine/events';
 import { TimelineAction, TimelineRow } from './action';
 import { TimelineEffect } from './effect';
+import { type UploadProps } from 'antd/es/upload';
 export * from './action';
 export * from './effect';
 
@@ -271,6 +272,9 @@ export interface TimelineEditor extends EditData {
    * @default true
    */
   autoReRender?: boolean;
+    /** 是否可以上传 */
+  canUpload?: boolean;
+  customRequest?: UploadProps['customRequest'];
   /**
    * @description 数据改变回调，会在操作动作end改变数据后触发(返回false会阻止自动engine同步，用于减少性能开销)
    */

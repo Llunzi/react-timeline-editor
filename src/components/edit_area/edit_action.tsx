@@ -8,6 +8,7 @@ import { RowDnd } from '../row_rnd/row_rnd';
 import { RndDragCallback, RndDragEndCallback, RndDragStartCallback, RndResizeCallback, RndResizeEndCallback, RndResizeStartCallback, RowRndApi } from '../row_rnd/row_rnd_interface';
 import { DragLineData } from './drag_lines';
 import './edit_action.less';
+import stretchIcon from '../../assets/stretch.svg';
 
 export type EditActionProps = CommonProp & {
   row: TimelineRow;
@@ -387,8 +388,12 @@ export const EditAction: FC<EditActionProps> = ({
         style={{ height: rowHeight }}
       >
         {getActionRender && getActionRender(nowAction, nowRow)}
-        {flexible && <div className={prefix('action-left-stretch')} />}
-        {flexible && <div className={prefix('action-right-stretch')} />}
+        {flexible && <div className={prefix('action-left-stretch')} >
+          <img src={stretchIcon} alt="" />
+        </div>}
+        {flexible && <div className={prefix('action-right-stretch')} >
+          <img src={stretchIcon} alt="" />
+        </div>}
       </div>
     </RowDnd>
   );

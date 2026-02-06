@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build)",
+      "WebFetch(domain:ant.design)",
+      "Bash(npm run dev)",
+      "Bash(npm start)",
+      "Bash(npm run start)"
+    ]
+  }
+}

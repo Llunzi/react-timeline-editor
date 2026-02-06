@@ -9,7 +9,7 @@ import { Cursor } from './cursor/cursor';
 import { EditArea } from './edit_area/edit_area';
 import './timeline.less';
 import { TimeArea } from './time_area/time_area';
-import groupBy from 'lodash/groupBy';
+import { groupBy } from 'lodash-es';
 
 export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, ref) => {
   const checkedProps = checkProps(props);
@@ -213,27 +213,27 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
             ) : null}
             {areaCount > 1
               ? Object.keys(groupedData).map((key, index) => {
-                  const handleGroupDataChange = (updatedData: TimelineRow[]) => {
-                    const mergedData = editorData.filter(item => String(item.type) !== key).concat(updatedData);
-                    const sortedMergedData = [...mergedData].sort((a, b) => {
-                      const indexA = keys.indexOf(String(a.type));
-                      const indexB = keys.indexOf(String(b.type));
-                      return indexA - indexB;
-                    });
-                    const result = onChange(sortedMergedData);
-                    if (result !== false) {
-                      setEditorData(sortedMergedData);
-                      engineRef.current.data = sortedMergedData;
-                      autoReRender && engineRef.current.reRender();
-                    }
-                  };
-                  
-                  return (
+                const handleGroupDataChange = (updatedData: TimelineRow[]) => {
+                  const mergedData = editorData.filter(item => String(item.type) !== key).concat(updatedData);
+                  const sortedMergedData = [...mergedData].sort((a, b) => {
+                    const indexA = keys.indexOf(String(a.type));
+                    const indexB = keys.indexOf(String(b.type));
+                    return indexA - indexB;
+                  });
+                  const result = onChange(sortedMergedData);
+                  if (result !== false) {
+                    setEditorData(sortedMergedData);
+                    engineRef.current.data = sortedMergedData;
+                    autoReRender && engineRef.current.reRender();
+                  }
+                };
+
+                return (
                     <EditArea
                       key={key}
                       isMulti={areaCount > 1}
-                      className={index !== 0 ? `no-flex ${key}` : `overflow-hidden ${key}`}
                       {...checkedProps}
+                      className={index !== 0 ? `no-flex ${key} ${index}` : `overflow-hidden ${key} ${index}`}
                       timelineWidth={width}
                       ref={(ref) => ((areaRef.current as any) = ref?.domRef.current)}
                       disableDrag={disableDrag || isPlaying}
@@ -250,8 +250,8 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                         onScrollVertical && onScrollVertical(params);
                       }}
                     />
-                  );
-                })
+                );
+              })
               : null}
 
             {!hideCursor && (

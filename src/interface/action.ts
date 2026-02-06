@@ -26,6 +26,8 @@ export interface TimelineAction {
   minStart?: number;
   /** 动作最大结束时间限制 */
   maxEnd?: number;
+  /** 动作的url */
+  url?: string;
 }
 
 /**
@@ -46,4 +48,5 @@ export interface TimelineRow {
   classNames?: string[];
   /** 行的类型 */
   type?: string;
+  canUpload?: boolean;
 }
