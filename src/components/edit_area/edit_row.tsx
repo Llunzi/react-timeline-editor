@@ -17,6 +17,12 @@ export type EditRowProps = CommonProp & {
   scrollLeft: number;
   /** 设置scroll left */
   deltaScrollLeft: (scrollLeft: number) => void;
+  /** 允许拖拽创建新轨道 */
+  allowCreateTrack?: boolean;
+  /** 设置预览指示器位置 */
+  setDropPreview?: (preview: { position: 'before' | 'after'; rowIndex: number } | null) => void;
+  /** time-editor-container的ref引用 */
+  containerRef?: React.MutableRefObject<HTMLDivElement>;
 };
 
 export const EditRow: FC<EditRowProps> = (props) => {
@@ -31,6 +37,8 @@ export const EditRow: FC<EditRowProps> = (props) => {
     startLeft,
     scale,
     scaleWidth,
+    allowCreateTrack,
+    containerRef,
   } = props;
 
   const classNames = ['edit-row'];
@@ -77,6 +85,9 @@ export const EditRow: FC<EditRowProps> = (props) => {
           handleTime={handleTime}
           row={rowData}
           action={action}
+          allowCreateTrack={allowCreateTrack}
+          setDropPreview={props.setDropPreview}
+          containerRef={containerRef}
         />
       ))}
     </div>

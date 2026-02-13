@@ -13,12 +13,14 @@ const TimelineEditor = () => {
     <div className="timeline-editor-example0">
       <Timeline
         theme="light"
+        style={{height: 170}}
         onChange={setData}
         editorData={data}
         effects={mockEffect}
         canUpload={true}
         hideCursor={false}
         autoScroll={true}
+        allowCreateTrack
         customRequest={({ file, onSuccess, onError, ...rest }) => {
           // 创建FormData对象
           const formData = new FormData();

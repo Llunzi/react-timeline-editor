@@ -74,6 +74,11 @@ export interface EditData {
    */
   disableDrag?: boolean;
   /**
+   * @description 允许拖拽创建新轨道
+   * @default true
+   */
+  allowCreateTrack?: boolean;
+  /**
    * @description timeline运行器，不传则使用内置运行器
    */
   engine?: ITimelineEngine;
@@ -96,7 +101,7 @@ export interface EditData {
   /**
    * @description 移动结束回调（return false可阻止onChange触发）
    */
-  onActionMoveEnd?: (params: { action: TimelineAction; row: TimelineRow; start: number; end: number }) => void;
+  onActionMoveEnd?: (params: { action: TimelineAction; row: TimelineRow; start: number; end: number; isNewRow?: boolean }) => void;
   /**
    * @description 开始改变大小回调
    */
@@ -203,6 +208,8 @@ export interface EditData {
    * @description 点击时间区域事件, 返回false时阻止设置时间
    */
   onClickTimeArea?: (time: number, e: React.MouseEvent<HTMLDivElement, MouseEvent>) => boolean | undefined;
+
+  onUpdateEditorData?: (editorData: TimelineRow, actions: TimelineAction[]) => void;
 }
 
 export interface TimelineState {

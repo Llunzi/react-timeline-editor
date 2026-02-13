@@ -30,12 +30,14 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
     engine,
     autoReRender = true,
     onScroll: onScrollVertical,
+    allowCreateTrack = true,
   } = checkedProps;
 
   const engineRef = useRef<ITimelineEngine>(engine || new TimelineEngine());
   const domRef = useRef<HTMLDivElement>();
   const areaRef = useRef<HTMLDivElement>();
   const scrollSync = useRef<ScrollSync>();
+  const containerRef = useRef<HTMLDivElement>();
 
   // 编辑器数据
   const [editorData, setEditorData] = useState(data);
@@ -205,6 +207,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                 scrollLeft={scrollLeft}
                 setEditorData={handleEditorDataChange}
                 deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
+                allowCreateTrack={allowCreateTrack}
                 onScroll={(params) => {
                   onScroll(params);
                   onScrollVertical && onScrollVertical(params);
@@ -212,7 +215,9 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
               />
             ) : null}
             {areaCount > 1
-              ? Object.keys(groupedData).map((key, index) => {
+              ? <div id='time-editor-container' ref={containerRef} style={{overflow: 'auto'}}>
+                {
+                  Object.keys(groupedData).map((key, index) => {
                 const handleGroupDataChange = (updatedData: TimelineRow[]) => {
                   const mergedData = editorData.filter(item => String(item.type) !== key).concat(updatedData);
                   const sortedMergedData = [...mergedData].sort((a, b) => {
@@ -245,6 +250,8 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                       scrollLeft={scrollLeft}
                       setEditorData={handleGroupDataChange}
                       deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
+                      allowCreateTrack={allowCreateTrack}
+                      containerRef={containerRef}
                       onScroll={(params) => {
                         onScroll(params);
                         onScrollVertical && onScrollVertical(params);
@@ -252,6 +259,8 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                     />
                 );
               })
+                }
+              </div>
               : null}
 
             {!hideCursor && (

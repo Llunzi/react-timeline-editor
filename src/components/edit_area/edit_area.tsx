@@ -45,6 +45,10 @@ export type EditAreaProps = CommonProp & {
   canUpload?: boolean;
   /** 自定义上传请求 */
   customRequest?: UploadProps['customRequest'];
+  /** 允许拖拽创建新轨道 */
+  allowCreateTrack?: boolean;
+  /** time-editor-container的ref引用 */
+  containerRef?: React.MutableRefObject<HTMLDivElement>;
 };
 
 /** edit area ref数据 */
@@ -75,9 +79,12 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
     onActionResizeEnd,
     onActionResizeStart,
     onActionResizing,
+    onUpdateEditorData,
     canUpload = false,
     customRequest,
     setEditorData,
+    allowCreateTrack = true,
+    containerRef,
   } = props;
 
   // 支持mp3\wav格式上传
@@ -97,8 +104,6 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
         return;
       }
       const uid = info.file.uid;
-      const { actions = [] } = row;
-
       const duration = await getAudioDuration(info.file.response.url);
 
       const newAction: TimelineAction = {
@@ -109,8 +114,8 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
         start: currentMouseTime,
         end: currentMouseTime + duration,
       };
-      actions.push(newAction);
-      setEditorData([...editorData]);
+
+      onUpdateEditorData?.(row, [newAction]);
     };
   };
 
@@ -120,6 +125,7 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
   const [currentMouseTime, setCurrentMouseTime] = useState<number>(0);
   const heightRef = useRef(-1);
   const uploadRef = useRef<any>();
+  const [dropPreview, setDropPreview] = useState<{ position: 'before' | 'after'; rowIndex: number } | null>(null);
 
   // 处理拖拽上传事件
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -197,6 +203,9 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
         rowHeight={row?.rowHeight || rowHeight}
         rowData={row}
         dragLineData={dragLineData}
+        allowCreateTrack={allowCreateTrack}
+        setDropPreview={setDropPreview}
+        containerRef={containerRef}
         onActionMoveStart={(data) => {
           handleInitDragLine(data);
           return onActionMoveStart && onActionMoveStart(data);
@@ -225,7 +234,7 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
       />
     );
 
-    if (canUpload || row.canUpload) {
+    if (canUpload || row?.canUpload) {
       return (
         <Upload
           ref={uploadRef}
@@ -308,6 +317,34 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
         }}
       </AutoSizer>
       {dragLine && <DragLines scrollLeft={scrollLeft} {...dragLineData} />}
+      {dropPreview && (() => {
+        // 计算预览指示器的位置
+        let top = 0;
+        for (let i = 0; i < editorData.length; i++) {
+          if (dropPreview.position === 'before' && i === dropPreview.rowIndex) {
+            break;
+          }
+          top += editorData[i].rowHeight || rowHeight;
+          if (dropPreview.position === 'after' && i === dropPreview.rowIndex) {
+            break;
+          }
+        }
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: top - scrollTop,
+              height: '2px',
+              backgroundColor: 'transparent',
+              borderTop: '2px dashed #1890ff',
+              zIndex: 1000,
+              pointerEvents: 'none',
+            }}
+          />
+        );
+      })()}
     </div>
   );
 });

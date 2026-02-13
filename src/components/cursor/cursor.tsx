@@ -52,7 +52,7 @@ export const Cursor: FC<CursorProps> = ({
 
   return (
     <RowDnd
-      top={theme === 'light' ? 40 : 0}
+      top={theme === 'light' ? 16 : 0}
       start={startLeft}
       ref={rowRnd}
       parentRef={areaRef}

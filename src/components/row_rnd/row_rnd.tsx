@@ -34,6 +34,8 @@ export const RowDnd = React.forwardRef<RowRndApi, RowRndProps>(
       onDrag,
       parentRef,
       deltaScrollLeft,
+      deltaScrollTop,
+      verticalScrollRef,
     },
     ref,
   ) => {
@@ -41,7 +43,7 @@ export const RowDnd = React.forwardRef<RowRndApi, RowRndProps>(
     const deltaX = useRef(0);
     const deltaY = useRef(0);
     const isAdsorption = useRef(false);
-    const { initAutoScroll, dealDragAutoScroll, dealResizeAutoScroll, stopAutoScroll } = useAutoScroll(parentRef);
+    const { initAutoScroll, dealDragAutoScroll, dealResizeAutoScroll, stopAutoScroll } = useAutoScroll(parentRef, verticalScrollRef);
 
     useEffect(() => {
       return () => {
@@ -219,7 +221,17 @@ export const RowDnd = React.forwardRef<RowRndApi, RowRndProps>(
           const preHeight = parseFloat(height || '0');
           deltaX.current += delta;
           move({ preLeft, preWidth, preTop, preHeight, scrollDelta: delta });
-        });
+        }, deltaScrollTop ? (delta) => {
+          deltaScrollTop(delta);
+          // Y轴自动滚动时，需要累加到 deltaY.current 以保持元素与鼠标的相对位置
+          let { left, width, top, height } = target.dataset;
+          const preLeft = parseFloat(left || '0');
+          const preWidth = parseFloat(width || '0');
+          const preTop = parseFloat(top || '0');
+          const preHeight = parseFloat(height || '0');
+          deltaY.current += delta;
+          move({ preLeft, preWidth, preTop, preHeight });
+        } : undefined);
         if (!result) return;
       }
 

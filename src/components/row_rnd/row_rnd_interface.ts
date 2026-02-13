@@ -59,7 +59,9 @@ export interface RowRndProps {
   // 同时传入parentRef和deltaScrollLeft时会启动自动滚动
   parentRef?: React.MutableRefObject<HTMLDivElement>;
   deltaScrollLeft?: (delta: number) => void;
-  
+  deltaScrollTop?: (delta: number) => void;
+  verticalScrollRef?: React.MutableRefObject<HTMLDivElement>;
+
   children?: React.ReactNode;
 
   enableResizing?: boolean;

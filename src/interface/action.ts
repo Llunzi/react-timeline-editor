@@ -49,4 +49,6 @@ export interface TimelineRow {
   /** 行的类型 */
   type?: string;
   canUpload?: boolean;
+  /** 是否为预览轨道 */
+  isPreview?: boolean;
 }
