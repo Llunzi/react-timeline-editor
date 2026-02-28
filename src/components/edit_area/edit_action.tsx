@@ -1,4 +1,5 @@
-import React, { FC, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { FC, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
+import { useDebounceFn } from 'ahooks';
 import { TimelineAction, TimelineRow } from '../../interface/action';
 import { CommonProp } from '../../interface/common_prop';
 import { DEFAULT_ADSORPTION_DISTANCE, DEFAULT_MOVE_GRID } from '../../interface/const';
@@ -25,6 +26,7 @@ export type EditActionProps = CommonProp & {
   setDropPreview?: (preview: { position: 'before' | 'after'; rowIndex: number } | null) => void;
   /** time-editor-container的ref引用 */
   containerRef?: React.MutableRefObject<HTMLDivElement>;
+  selectedActionIds?: string[];
 };
 
 export const EditAction: FC<EditActionProps> = ({
@@ -133,7 +135,7 @@ export const EditAction: FC<EditActionProps> = ({
     originalPosition.current = { start: action.start, end: action.end };
     onActionMoveStart && onActionMoveStart({ action, row });
   };
-  const handleDrag: RndDragCallback = ({ left, width, top }) => {
+  const handleDrag: RndDragCallback = ({ left, width, top, ...args }) => {
     isDragWhenClick.current = true;
 
     // 检查是否需要显示预览指示器
@@ -161,7 +163,7 @@ export const EditAction: FC<EditActionProps> = ({
 
     if (onActionMoving) {
       const { start, end } = parserTransformToTime({ left, width }, { scaleWidth, scale, startLeft });
-      const result = onActionMoving({ action, row, start, end });
+      const result = onActionMoving({ action, row, start, end, left, width, top, ...args });
       if (result === false) return false;
     }
     if (isMounted.current) {
@@ -170,7 +172,9 @@ export const EditAction: FC<EditActionProps> = ({
     handleScaleCount(left, width);
   };
 
-  const handleDragEnd: RndDragEndCallback = ({ left, width, top, height }) => {
+  const handleDragEndBase = useCallback<RndDragEndCallback>(({ left, width, top, height }) => {
+
+    console.log('handleDragEnd: ', left, width, top, height);
     // 清理预览指示器
     if (setDropPreview) {
       setDropPreview(null);
@@ -178,6 +182,9 @@ export const EditAction: FC<EditActionProps> = ({
 
     // 计算时间
     let { start, end } = parserTransformToTime({ left, width }, { scaleWidth, scale, startLeft });
+
+
+    console.log('handleDragEnd start, end : ', start, end);
 
     // 检测目标row
     let targetRowIndex = editorData.findIndex((item) => item.id === row.id);
@@ -225,6 +232,22 @@ export const EditAction: FC<EditActionProps> = ({
     // 如果需要创建新轨道
     if (needCreateNewRow) {
       const newRowId = `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // 计算新轨道的order值
+      let newOrder = 0;
+      if (editorData.length > 0) {
+        const existingOrders = editorData.map(r => r.order || 0);
+        if (newRowPosition === 'before') {
+          // 插入到开头，使用最小order值减1
+          const minOrder = Math.min(...existingOrders);
+          newOrder = minOrder - 1;
+        } else {
+          // 插入到结尾，使用最大order值加1
+          const maxOrder = Math.max(...existingOrders);
+          newOrder = maxOrder + 1;
+        }
+      }
+
       targetRowItem = {
         id: newRowId,
         actions: [],
@@ -232,9 +255,10 @@ export const EditAction: FC<EditActionProps> = ({
         type: row.type, // 继承源轨道的type，保持分组一致
         classNames: row.classNames, // 继承源轨道的classNames
         canUpload: row.canUpload, // 继承源轨道的canUpload属性
+        order: newOrder, // 设置新轨道的order值
       };
 
-      console.log('Creating new row:', newRowId, 'with type:', row.type);
+      console.log('Creating new row:', newRowId, 'with type:', row.type, 'order:', newOrder);
 
       // 将新轨道插入到正确的位置
       if (newRowPosition === 'before') {
@@ -312,7 +336,7 @@ export const EditAction: FC<EditActionProps> = ({
               minDistance = distance;
               bestPosition = { start: candidateStart, end: candidateEnd };
               foundPosition = true;
-            } 
+            }
           }
         }
 
@@ -386,6 +410,8 @@ export const EditAction: FC<EditActionProps> = ({
     actionItem.start = start;
     actionItem.end = end;
 
+    console.log('handleDragEnd actionItem: ', targetRowItem, row);
+
     // 如果拖拽到了不同的row,需要移动action
     if (targetRowItem.id !== row.id) {
       console.log('Moving action to different row');
@@ -416,11 +442,37 @@ export const EditAction: FC<EditActionProps> = ({
 
     // 更新transform以反映新位置
     const newTransform = parserTimeToTransform({ start, end }, { startLeft, scale, scaleWidth });
+    
     setTransform({ ...newTransform, top: 0 });
 
+    let up = 0 // -1 向上移动，1 向下移动，0 不移动
+
+    if (targetRowItem.id !== row.id) {
+      up = top > 0 ? 1 : -1;
+    }
+
     // 执行回调
-    if (onActionMoveEnd) onActionMoveEnd({ action: actionItem, row: targetRowItem, start, end, isNewRow: needCreateNewRow });
-  };
+    if (onActionMoveEnd) onActionMoveEnd({ action: actionItem, row: targetRowItem, start, end, isNewRow: needCreateNewRow, left, width, top, height, up });
+  }, [
+    action,
+    allowCreateTrack,
+    editorData,
+    id,
+    onActionMoveEnd,
+    parserTimeToTransform,
+    parserTransformToTime,
+    row,
+    scale,
+    scaleWidth,
+    setDropPreview,
+    setEditorData,
+    startLeft,
+  ]);
+
+  // 防抖版本的 handleDragEnd
+  const { run: handleDragEnd } = useDebounceFn(handleDragEndBase, {
+    wait: 300,
+  });
 
   const handleResizeStart: RndResizeStartCallback = (dir) => {
     onActionResizeStart && onActionResizeStart({ action, row, dir });
@@ -444,12 +496,16 @@ export const EditAction: FC<EditActionProps> = ({
     // 设置数据
     const rowItem = editorData.find((item) => item.id === row.id);
     const action = rowItem.actions.find((item) => item.id === id);
+
+    const originalStart = action.start;
+    const originalEnd = action.end;
+
     action.start = start;
     action.end = end;
     setEditorData(editorData);
 
     // 触发回调
-    if (onActionResizeEnd) onActionResizeEnd({ action, row, start, end, dir });
+    if (onActionResizeEnd) onActionResizeEnd({ action, row, start, end, dir, originalStart, originalEnd });
   };
   //#endregion
 
@@ -468,41 +524,61 @@ export const EditAction: FC<EditActionProps> = ({
 
   const currentRowIndex = editorData.findIndex(item => item.id === row.id);
 
+  
+
+  useEffect(() => {
+    const handleActionMoveEnd = (e: CustomEvent) => {
+      const { left, width, top, height, id } = e.detail || {}
+
+      console.log('handleActionMoveEnd: ', left, width, top, height, id);
+
+      if (id === action.id) {
+        handleDragEnd({ left, width, top, height });
+      }
+    };
+    window.addEventListener('action-move-end', handleActionMoveEnd);
+
+    return () => {
+      window.removeEventListener('action-move-end', handleActionMoveEnd);
+    };
+  }, [containerRef, handleDragEnd]);
+
   return (
     <RowDnd
-        ref={rowRnd}
-        parentRef={areaRef}
-        verticalScrollRef={containerRef}
-        start={startLeft}
-        left={transform.left}
-        width={transform.width}
-        top={transform.top}
-        height={rowHeight}
-        grid={(gridSnap && gridSize) || DEFAULT_MOVE_GRID}
-        adsorptionDistance={gridSnap ? Math.max((gridSize || DEFAULT_MOVE_GRID) / 2, DEFAULT_ADSORPTION_DISTANCE) : DEFAULT_ADSORPTION_DISTANCE}
-        adsorptionPositions={dragLineData.assistPositions}
-        bounds={{
-          left: leftLimit,
-          right: rightLimit,
-          top: -(currentRowIndex + 1) * rowHeight,
-          bottom: (editorData.length - currentRowIndex + 1) * rowHeight,
-        }}
-        edges={{
-          left: !disableDrag && flexible && `.${prefix('action-left-stretch')}`,
-          right: !disableDrag && flexible && `.${prefix('action-right-stretch')}`,
-        }}
-        enableDragging={!disableDrag && movable}
-        enableResizing={!disableDrag && flexible}
-        onDragStart={handleDragStart}
-        onDrag={handleDrag}
-        onDragEnd={handleDragEnd}
-        onResizeStart={handleResizeStart}
-        onResize={handleResizing}
-        onResizeEnd={handleResizeEnd}
-        deltaScrollLeft={deltaScrollLeft}
-        deltaScrollTop={handleDeltaScrollTop}
-      >
+      ref={rowRnd}
+      parentRef={areaRef}
+      verticalScrollRef={containerRef}
+      start={startLeft}
+      left={transform.left}
+      width={transform.width}
+      top={transform.top}
+      height={rowHeight}
+      grid={(gridSnap && gridSize) || DEFAULT_MOVE_GRID}
+      adsorptionDistance={gridSnap ? Math.max((gridSize || DEFAULT_MOVE_GRID) / 2, DEFAULT_ADSORPTION_DISTANCE) : DEFAULT_ADSORPTION_DISTANCE}
+      adsorptionPositions={dragLineData.assistPositions}
+      bounds={{
+        left: leftLimit,
+        right: rightLimit,
+        top: -(currentRowIndex + 1) * rowHeight,
+        bottom: (editorData.length - currentRowIndex + 1) * rowHeight,
+      }}
+      edges={{
+        left: !disableDrag && flexible && `.${prefix('action-left-stretch')}`,
+        right: !disableDrag && flexible && `.${prefix('action-right-stretch')}`,
+      }}
+      enableDragging={!disableDrag && movable}
+      enableResizing={!disableDrag && flexible}
+      onDragStart={handleDragStart}
+      onDrag={handleDrag}
+      onDragEnd={handleDragEnd}
+      onResizeStart={handleResizeStart}
+      onResize={handleResizing}
+      onResizeEnd={handleResizeEnd}
+      deltaScrollLeft={deltaScrollLeft}
+      deltaScrollTop={handleDeltaScrollTop}
+    >
       <div
+        data-action-id={action.id}
         onMouseDown={() => {
           isDragWhenClick.current = false;
         }}

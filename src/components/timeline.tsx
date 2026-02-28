@@ -208,6 +208,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                 setEditorData={handleEditorDataChange}
                 deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
                 allowCreateTrack={allowCreateTrack}
+                onMutiSelectChange={props?.onMutiSelectChange}
                 onScroll={(params) => {
                   onScroll(params);
                   onScrollVertical && onScrollVertical(params);
@@ -238,7 +239,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                       key={key}
                       isMulti={areaCount > 1}
                       {...checkedProps}
-                      className={index !== 0 ? `no-flex ${key} ${index}` : `overflow-hidden ${key} ${index}`}
+                      className={index !== 0 ? `no-flex ${key} ${index} overflow-hidden` : `overflow-hidden ${key} ${index}`}
                       timelineWidth={width}
                       ref={(ref) => ((areaRef.current as any) = ref?.domRef.current)}
                       disableDrag={disableDrag || isPlaying}
@@ -252,6 +253,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                       deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
                       allowCreateTrack={allowCreateTrack}
                       containerRef={containerRef}
+                      onMutiSelectChange={props?.onMutiSelectChange}
                       onScroll={(params) => {
                         onScroll(params);
                         onScrollVertical && onScrollVertical(params);

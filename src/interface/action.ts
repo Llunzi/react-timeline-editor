@@ -51,4 +51,6 @@ export interface TimelineRow {
   canUpload?: boolean;
   /** 是否为预览轨道 */
   isPreview?: boolean;
+  /** 轨道顺序 */
+  order?: number;
 }

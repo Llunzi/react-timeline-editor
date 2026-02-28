@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import { AutoSizer, Grid, GridCellRenderer, OnScrollParams } from 'react-virtualized';
 import { TimelineAction, TimelineRow } from '../../interface/action';
 import { CommonProp } from '../../interface/common_prop';
@@ -9,18 +9,26 @@ import { DragLines } from './drag_lines';
 import './edit_area.less';
 import { EditRow } from './edit_row';
 import { useDragLine } from './hooks/use_drag_line';
+import { useRowSelection } from './hooks/use_row_selection';
 import { Upload, type UploadProps } from 'antd/es';
 import { message } from 'antd/es';
 import { Howl } from 'howler';
+import { useRowDrag } from './hooks/use_row_drag';
 
 // 获取音频时长
 const getAudioDuration = (url: string): Promise<number> => {
   return new Promise((resolve) => {
-    const sound = new Howl({ src: [url] });
+    const sound = new Howl({ src: url });
     sound.on('load', () => {
       resolve(sound.duration());
       sound.unload();
     });
+
+    setTimeout(() => {
+      resolve(2); // 加载失败时返回默认时长2秒
+      sound.unload();
+    }, 6 * 1000); // 60秒超时 60 * 1000
+
     sound.on('loaderror', () => {
       resolve(2); // 加载失败时返回默认时长2秒
       sound.unload();
@@ -80,6 +88,7 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
     onActionResizeStart,
     onActionResizing,
     onUpdateEditorData,
+    onMutiSelectChange,
     canUpload = false,
     customRequest,
     setEditorData,
@@ -107,7 +116,7 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
       const duration = await getAudioDuration(info.file.response.url);
 
       const newAction: TimelineAction = {
-        id: uid,
+        id: info.file.response?.id || uid,
         effectId: 'custom_video_effect',
         flexible: true,
         url: info.file.response.url,
@@ -126,6 +135,60 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
   const heightRef = useRef(-1);
   const uploadRef = useRef<any>();
   const [dropPreview, setDropPreview] = useState<{ position: 'before' | 'after'; rowIndex: number } | null>(null);
+  const [dragIndicator, setDragIndicator] = useState<{ targetIndex: number; rowsMoved: number } | null>(null);
+
+  // 框选功能
+  const { DragSelection, selectedActionIds } = useRowSelection({
+    editorData,
+    rowHeight,
+    scrollTop,
+    scrollLeft,
+    onSelectionChange: (selectedActionIds) => {
+      // 更新 editorData 中每个 action 的选中状态
+      const updatedData = editorData.map((row) => ({
+        ...row,
+        actions: row.actions.map((action) => ({
+          ...action,
+          selected: selectedActionIds.includes(action.id),
+        })),
+      }));
+      setEditorData(updatedData);
+      onMutiSelectChange?.(selectedActionIds);
+    },
+    disabled: false,
+    containerRef: editAreaRef,
+  });
+
+  const { onDragStart, onDragMove, onDragEnd, getPreviewPosition, isMultiDragging, getMultiDragState } = useRowDrag({
+    selectedActionIds,
+    editorData,
+    containerRef: editAreaRef as React.RefObject<HTMLDivElement>,
+    scale,
+    scaleWidth,
+    startLeft,
+    setEditorData,
+    allowCreateTrack,
+    rowHeight,
+  });
+
+  // 监听拖拽位置指示器事件
+  useEffect(() => {
+    const handleDragMove = (e: CustomEvent) => {
+      setDragIndicator(e.detail);
+    };
+
+    const handleDragEnd = () => {
+      setDragIndicator(null);
+    };
+
+    window.addEventListener('row-drag-move', handleDragMove as EventListener);
+    window.addEventListener('row-drag-end', handleDragEnd);
+
+    return () => {
+      window.removeEventListener('row-drag-move', handleDragMove as EventListener);
+      window.removeEventListener('row-drag-end', handleDragEnd);
+    };
+  }, []);
 
   // 处理拖拽上传事件
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -190,6 +253,7 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
   /** 获取每个cell渲染内容 */
   const cellRenderer: GridCellRenderer = ({ rowIndex, key, style }) => {
     const row = editorData[rowIndex]; // 行数据
+
     const editRow = (
       <EditRow
         {...props}
@@ -206,8 +270,10 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
         allowCreateTrack={allowCreateTrack}
         setDropPreview={setDropPreview}
         containerRef={containerRef}
+        selectedActionIds={selectedActionIds}
         onActionMoveStart={(data) => {
           handleInitDragLine(data);
+          onDragStart({ action: data.action, row: data.row });
           return onActionMoveStart && onActionMoveStart(data);
         }}
         onActionResizeStart={(data) => {
@@ -217,6 +283,20 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
         }}
         onActionMoving={(data) => {
           handleUpdateDragLine(data);
+          // 传递拖拽参数给多选拖拽处理
+          onDragMove({
+            actionId: data.action.id,
+            left: data.left,
+            width: data.width,
+            top: data.top || 0,
+            height: data.height || 0,
+            dx: (data.left || 0) - (data.lastLeft || 0),
+            dy: (data.top || 0) - (data.lastTop || 0),
+            lastLeft: data.lastLeft,
+            lastWidth: data.lastWidth,
+            lastTop: data.lastTop,
+            lastHeight: data.lastHeight,
+          });
           return onActionMoving && onActionMoving(data);
         }}
         onActionResizing={(data) => {
@@ -229,21 +309,30 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
         }}
         onActionMoveEnd={(data) => {
           disposeDragLine();
+          // 传递拖拽结束参数给多选拖拽处理
+          onDragEnd({
+            actionId: data.action.id,
+            left: data.left || 0,
+            width: data.width || 0,
+            top: data.top || 0,
+            height: data.height || 0,
+            up: data.up || 0,
+          });
           return onActionMoveEnd && onActionMoveEnd(data);
         }}
       />
     );
 
-    if (canUpload || row?.canUpload) {
+    if (!!row && (canUpload || row?.canUpload)) {
       return (
         <Upload
           ref={uploadRef}
-          key={key}
+          key={key + 'upload'}
           style={{ width: '100%', display: 'block', ...style, top: 0 }}
           beforeUpload={onBeforeUpload}
           onChange={handleUploadChange(row)}
           showUploadList={false}
-          openFileDialogOnClick={false}
+          openFileDialogOnClick={row.actions?.filter((item) => item.effectId === 'effect2').length > 0}
           customRequest={customRequest}
           onDrop={handleDrop}
           type="drag"
@@ -273,6 +362,8 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
       style={{
         height: isMulti ? _totalHeight : 'unset',
         maxHeight: isMulti ? _totalHeight : 'unset',
+        width: isMulti ? Math.max(scaleCount * scaleWidth + startLeft, 0) : 'unset',
+        minWidth: isMulti ? '100%' : 'unset',
       }}
     >
       <AutoSizer style={{ height: isMulti ? _totalHeight : 'unset' }}>
@@ -316,7 +407,34 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
           );
         }}
       </AutoSizer>
+      <DragSelection />
       {dragLine && <DragLines scrollLeft={scrollLeft} {...dragLineData} />}
+      {dragIndicator && (() => {
+        // 计算拖拽位置指示器的位置
+        let top = 0;
+        const targetIndex = dragIndicator.targetIndex;
+
+        for (let i = 0; i < Math.min(targetIndex, editorData.length); i++) {
+          top += editorData[i].rowHeight || rowHeight;
+        }
+
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: top - scrollTop + 16,
+              height: '3px',
+              backgroundColor: '#1890ff',
+              boxShadow: '0 0 8px rgba(24, 144, 255, 0.6)',
+              zIndex: 1001,
+              pointerEvents: 'none',
+              transition: 'top 0.05s ease-out',
+            }}
+          />
+        );
+      })()}
       {dropPreview && (() => {
         // 计算预览指示器的位置
         let top = 0;
@@ -329,13 +447,14 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
             break;
           }
         }
+
         return (
           <div
             style={{
               position: 'absolute',
               left: 0,
               right: 0,
-              top: top - scrollTop,
+              top: top - scrollTop + 16,
               height: '2px',
               backgroundColor: 'transparent',
               borderTop: '2px dashed #1890ff',

@@ -14,24 +14,12 @@ export const mockEffect: Record<string, TimelineEffect> = {
 
 export const mockData: TimelineRow[] = [
   {
-    id: "0",
-    actions: [
-      {
-        id: "action00",
-        start: 0,
-        end: 2,
-        effectId: "effect0",
-      },
-    ],
-    type: "image",
-  },
-  {
     id: "1",
     actions: [
       {
         id: "action10",
-        start: 1.5,
-        end: 5,
+        start: 0,
+        end: 0.5,
         effectId: "effect1",
       }
     ],

@@ -23,6 +23,8 @@ export type EditRowProps = CommonProp & {
   setDropPreview?: (preview: { position: 'before' | 'after'; rowIndex: number } | null) => void;
   /** time-editor-container的ref引用 */
   containerRef?: React.MutableRefObject<HTMLDivElement>;
+  /** 选中的 action IDs */
+  selectedActionIds?: string[];
 };
 
 export const EditRow: FC<EditRowProps> = (props) => {
@@ -39,10 +41,11 @@ export const EditRow: FC<EditRowProps> = (props) => {
     scaleWidth,
     allowCreateTrack,
     containerRef,
+    selectedActionIds = [],
   } = props;
 
   const classNames = ['edit-row'];
-  if (rowData?.selected) classNames.push('edit-row-selected');
+  if (rowData?.selected) classNames.push('selected');
 
   const handleTime = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
     if (!areaRef.current) return;
@@ -59,6 +62,8 @@ export const EditRow: FC<EditRowProps> = (props) => {
         ' ',
       )}`}
       style={style}
+      data-row-id={rowData?.id}
+      data-y="0"
       onClick={(e) => {
         if (rowData && onClickRow) {
           const time = handleTime(e);
@@ -88,6 +93,7 @@ export const EditRow: FC<EditRowProps> = (props) => {
           allowCreateTrack={allowCreateTrack}
           setDropPreview={props.setDropPreview}
           containerRef={containerRef}
+          selectedActionIds={selectedActionIds}
         />
       ))}
     </div>

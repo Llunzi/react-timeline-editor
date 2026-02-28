@@ -97,11 +97,11 @@ export interface EditData {
   /**
    * @description 移动回调（return false可阻止移动）
    */
-  onActionMoving?: (params: { action: TimelineAction; row: TimelineRow; start: number; end: number }) => void | boolean;
+  onActionMoving?: (params: { action: TimelineAction; row: TimelineRow; start: number; end: number; [key: string]: any }) => void | boolean;
   /**
    * @description 移动结束回调（return false可阻止onChange触发）
    */
-  onActionMoveEnd?: (params: { action: TimelineAction; row: TimelineRow; start: number; end: number; isNewRow?: boolean }) => void;
+  onActionMoveEnd?: (params: { action: TimelineAction; row: TimelineRow; start: number; end: number; isNewRow?: boolean; left?: number; width?: number; top?: number; height?: number; up?: number }) => void;
   /**
    * @description 开始改变大小回调
    */
@@ -113,7 +113,7 @@ export interface EditData {
   /**
    * @description 改变大小结束回调（return false可阻止onChange触发）
    */
-  onActionResizeEnd?: (params: { action: TimelineAction; row: TimelineRow; start: number; end: number; dir: 'right' | 'left' }) => void;
+  onActionResizeEnd?: (params: { action: TimelineAction; row: TimelineRow; start: number; end: number; dir: 'right' | 'left'; originalStart: number; originalEnd: number }) => void;
   /**
    * @description 点击行回调
    */
@@ -210,6 +210,7 @@ export interface EditData {
   onClickTimeArea?: (time: number, e: React.MouseEvent<HTMLDivElement, MouseEvent>) => boolean | undefined;
 
   onUpdateEditorData?: (editorData: TimelineRow, actions: TimelineAction[]) => void;
+  onMutiSelectChange?: (ids: string[]) => void;
 }
 
 export interface TimelineState {
@@ -286,4 +287,5 @@ export interface TimelineEditor extends EditData {
    * @description 数据改变回调，会在操作动作end改变数据后触发(返回false会阻止自动engine同步，用于减少性能开销)
    */
   onChange?: (editorData: TimelineRow[]) => void | boolean;
+  onMutiSelectChange?: (ids: string[]) => void;
 }

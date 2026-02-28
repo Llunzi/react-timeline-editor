@@ -1,6 +1,6 @@
 {
-  "name": "@xzdarcy/react-timeline-editor",
-  "version": "1.0.5",
+  "name": "sense-react-timeline-editor",
+  "version": "1.0.9",
   "author": "xzdarcy",
   "license": "MIT",
   "keywords": [
@@ -33,15 +33,17 @@
   "module": "dist/index.esm.js",
   "typings": "dist/index.d.ts",
   "peerDependencies": {
-    "react": "^15.3.0 || ^16.0.0-alpha || ^17.0.0 || ^18.0.0 || ^19.0.0",
-    "react-dom": "^15.3.0 || ^16.0.0-alpha || ^17.0.0 || ^18.0.0 || ^19.0.0",
-    "lodash-es": "^4.17.23",
+    "antd": "^5.26.5",
     "howler": "^2.2.3",
-    "antd": "^5.26.5"
+    "lodash-es": "^4.17.23",
+    "react": "^15.3.0 || ^16.0.0-alpha || ^17.0.0 || ^18.0.0 || ^19.0.0",
+    "react-dom": "^15.3.0 || ^16.0.0-alpha || ^17.0.0 || ^18.0.0 || ^19.0.0"
   },
   "dependencies": {
+    "@air/react-drag-to-select": "^5.0.11",
     "@interactjs/types": "^1.10.11",
     "@types/react-virtualized": "^9.21.14",
+    "ahooks": "^3.9.6",
     "framework-utils": "^1.1.0",
     "interactjs": "^1.10.11",
     "react-virtualized": "^9.22.3"

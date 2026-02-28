@@ -17,7 +17,7 @@ const TimelineEditor = () => {
         onChange={setData}
         editorData={data}
         effects={mockEffect}
-        canUpload={true}
+        canUpload={false}
         hideCursor={false}
         autoScroll={true}
         allowCreateTrack
