@@ -101,7 +101,7 @@ export interface EditData {
   /**
    * @description 移动结束回调（return false可阻止onChange触发）
    */
-  onActionMoveEnd?: (params: { action: TimelineAction; row: TimelineRow; start: number; end: number; isNewRow?: boolean; left?: number; width?: number; top?: number; height?: number; up?: number }) => void;
+  onActionMoveEnd?: (params: { action: TimelineAction; row: TimelineRow; start: number; end: number; isNewRow?: boolean; left?: number; width?: number; top?: number; height?: number; up?: number; isMultiDrag?: boolean }) => void;
   /**
    * @description 开始改变大小回调
    */

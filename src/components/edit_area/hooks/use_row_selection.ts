@@ -138,13 +138,32 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
     onSelectionChange([]);
   }, [onSelectionChange]);
 
+  // 处理 Ctrl+ 点击选择
+  const handleCtrlClick = useCallback(
+    (actionId: string, event: MouseEvent) => {
+      if (disabled) return;
+
+      const newSelectedActionIds = new Set(selectedActionIds);
+
+      if (newSelectedActionIds.has(actionId)) {
+        // 如果已选中，则取消选中
+        newSelectedActionIds.delete(actionId);
+      } else {
+        // 如果未选中，则添加选中
+        newSelectedActionIds.add(actionId);
+      }
+
+      setSelectedActionIds(newSelectedActionIds);
+      onSelectionChange(Array.from(newSelectedActionIds));
+    },
+    [disabled, selectedActionIds, onSelectionChange]
+  );
+
   // 点击空白区域取消选择
-  useEffect(() => {
-    if (disabled) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-
+  const handleClickOutside = useCallback(
+    (target: HTMLElement) => {
+      if (disabled) return;
+      
       // 如果点击的不是选中的 action 或框选框，清除选择
       if (
         !target.closest('.timeline-editor-selection-box') &&
@@ -155,35 +174,36 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
       ) {
         clearSelection();
       }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [disabled, clearSelection]);
+    },
+    [disabled, clearSelection]
+  );
 
   // 监听 Escape 键取消选择
-  useEffect(() => {
-    if (disabled) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (disabled) return;
+      
       if (e.key === 'Escape' && selectedActionIds.size > 0) {
         clearSelection();
       }
-    };
+    },
+    [disabled, selectedActionIds.size, clearSelection]
+  );
 
+  useEffect(() => {
     document.addEventListener('keydown', handleKeyDown);
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [disabled, selectedActionIds.size, clearSelection]);
+  }, [handleKeyDown]);
 
   return {
     DragSelection,
     selectedActionIds: Array.from(selectedActionIds),
     clearSelection,
+    onClickOutside: handleClickOutside,
+    onCtrlClick: handleCtrlClick,
+    setSelectedActionIds,
   };
 };

@@ -39,6 +39,8 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
   const scrollSync = useRef<ScrollSync>();
   const containerRef = useRef<HTMLDivElement>();
 
+  console.log(' Timeline mounted = ', areaRef);
+
   // 编辑器数据
   const [editorData, setEditorData] = useState(data);
   // scale数量
@@ -132,6 +134,23 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
     engineRef.current.on('paused', handlePaused);
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+
+      engineRef.current.trigger('mousedown', {
+        target,
+        evt: e
+      });
+    };
+
+       document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   // ref 数据
   useImperativeHandle(ref, () => ({
     get target() {
@@ -205,6 +224,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                 setScaleCount={handleSetScaleCount}
                 scrollTop={scrollTop}
                 scrollLeft={scrollLeft}
+                engineRef={engineRef}
                 setEditorData={handleEditorDataChange}
                 deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
                 allowCreateTrack={allowCreateTrack}
@@ -254,6 +274,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                       allowCreateTrack={allowCreateTrack}
                       containerRef={containerRef}
                       onMutiSelectChange={props?.onMutiSelectChange}
+                      engineRef={engineRef}
                       onScroll={(params) => {
                         onScroll(params);
                         onScrollVertical && onScrollVertical(params);

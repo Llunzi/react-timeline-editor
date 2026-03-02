@@ -14,6 +14,7 @@ export class Events {
       play: [],
       paused: [],
       ended: [],
+      mousedown: [],
       ...handlers,
     };
   }
@@ -69,4 +70,11 @@ export interface EventTypes {
    * @memberof EventTypes
    */
   ended: { engine: TimelineEngine };
+
+  /**
+   * 鼠标点击事件
+   * @type {{ target: HTMLElement, engine: TimelineEngine }}
+   * @memberof EventTypes
+   */
+  mousedown: { target: HTMLElement; evt: MouseEvent };
 }

@@ -65,7 +65,12 @@ export const EditAction: FC<EditActionProps> = ({
   allowCreateTrack = true,
   setDropPreview,
   containerRef,
+  selectedActionIds,
 }) => {
+
+
+  console.log('action: selectedActionIds = ', selectedActionIds);
+
   const rowRnd = useRef<RowRndApi>();
   const isDragWhenClick = useRef(false);
   const originalPosition = useRef({ start: 0, end: 0 });
@@ -172,7 +177,7 @@ export const EditAction: FC<EditActionProps> = ({
     handleScaleCount(left, width);
   };
 
-  const handleDragEndBase = useCallback<RndDragEndCallback>(({ left, width, top, height }) => {
+  const handleDragEndBase = useCallback<RndDragEndCallback>(({ left, width, top, height, isMultiDrag, fn: fnCallback }) => {
 
     console.log('handleDragEnd: ', left, width, top, height);
     // 清理预览指示器
@@ -442,7 +447,7 @@ export const EditAction: FC<EditActionProps> = ({
 
     // 更新transform以反映新位置
     const newTransform = parserTimeToTransform({ start, end }, { startLeft, scale, scaleWidth });
-    
+
     setTransform({ ...newTransform, top: 0 });
 
     let up = 0 // -1 向上移动，1 向下移动，0 不移动
@@ -451,8 +456,9 @@ export const EditAction: FC<EditActionProps> = ({
       up = top > 0 ? 1 : -1;
     }
 
+    fnCallback?.(actionItem);
     // 执行回调
-    if (onActionMoveEnd) onActionMoveEnd({ action: actionItem, row: targetRowItem, start, end, isNewRow: needCreateNewRow, left, width, top, height, up });
+    if (onActionMoveEnd) onActionMoveEnd({ action: actionItem, row: targetRowItem, start, end, isNewRow: needCreateNewRow, left, width, top, height, up, isMultiDrag: selectedActionIds?.length > 1 || isMultiDrag });
   }, [
     action,
     allowCreateTrack,
@@ -467,6 +473,7 @@ export const EditAction: FC<EditActionProps> = ({
     setDropPreview,
     setEditorData,
     startLeft,
+    selectedActionIds,
   ]);
 
   // 防抖版本的 handleDragEnd
@@ -524,16 +531,14 @@ export const EditAction: FC<EditActionProps> = ({
 
   const currentRowIndex = editorData.findIndex(item => item.id === row.id);
 
-  
-
   useEffect(() => {
     const handleActionMoveEnd = (e: CustomEvent) => {
-      const { left, width, top, height, id } = e.detail || {}
+      const { left, width, top, height, id, fn } = e.detail || {}
 
-      console.log('handleActionMoveEnd: ', left, width, top, height, id);
+      console.log('handleActionMoveEnd: ', left, width, top, height, id, fn);
 
       if (id === action.id) {
-        handleDragEnd({ left, width, top, height });
+        handleDragEnd({ left, width, top, height, fn });
       }
     };
     window.addEventListener('action-move-end', handleActionMoveEnd);
@@ -592,6 +597,20 @@ export const EditAction: FC<EditActionProps> = ({
           if (!isDragWhenClick.current && onClickActionOnly) {
             if (!time) time = handleTime(e);
             onClickActionOnly(e, { row, action, time: time });
+          }
+          
+          // 处理 Ctrl+ 点击选择
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            e.stopPropagation();
+            const event = new CustomEvent('ctrl-click-action', {
+              detail: {
+                actionId: action.id,
+                row,
+                originalEvent: e.nativeEvent
+              }
+            });
+            window.dispatchEvent(event);
           }
         }}
         onDoubleClick={(e) => {

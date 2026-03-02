@@ -16,6 +16,7 @@ export interface UseRowDragOptions {
   setEditorData?: (data: TimelineRow[]) => void;
   allowCreateTrack?: boolean;
   rowHeight?: number;
+  onUpdateEditorData?: (editorData: TimelineRow, actions: TimelineAction[]) => void;
 }
 
 export interface MultiDragState {
@@ -42,7 +43,8 @@ export interface MultiDragState {
 }
 
 export const useRowDrag = (options: UseRowDragOptions) => {
-  const { selectedActionIds, editorData, containerRef, scale = 1, scaleWidth = 160, startLeft = 20, setEditorData } = options;
+  const { selectedActionIds, editorData, containerRef, scale = 1, scaleWidth = 160,
+    startLeft = 20, setEditorData, onUpdateEditorData } = options;
 
   // 多选拖拽状态
   const multiDragState = React.useRef<MultiDragState>({
@@ -259,7 +261,7 @@ export const useRowDrag = (options: UseRowDragOptions) => {
       return;
     }
 
-    const { actionId, left, width,  height, dx = 0, dy = 0 } = params;
+    const { actionId, left, width, height, dx = 0, dy = 0 } = params;
     let { top } = params;
     const { initialPositions, primaryActionId, offsetX = 0, offsetY = 0 } = state;
 
@@ -351,8 +353,9 @@ export const useRowDrag = (options: UseRowDragOptions) => {
 
       console.log('Multi-drag ended, deltaTime:', deltaTime);
 
+      const updatedData = [];
       // 更新所有选中的 actions 的最终位置
-      const updatedData = editorData.map((r) => ({
+      editorData.map((r) => ({
         ...r,
         actions: r.actions.map((a) => {
           if (selectedActionIds.includes(a.id) && primaryActionId !== a.id) {
@@ -362,11 +365,26 @@ export const useRowDrag = (options: UseRowDragOptions) => {
             // 计算 left, width, top, height
             const { left, width } = parserTimeToTransform({ start: newStart, end: newEnd }, { scaleWidth, scale, startLeft })
 
-           setTimeout(() => {
-            console.log('useRowDrag 1222: 拖拽结束', { left, width, top, height, id: a.id });
-            window.dispatchEvent(new CustomEvent('action-move-end', { detail: { left, width, top, height, id: a.id } }));
-           }, 0);
+            setTimeout(() => {
+              console.log('useRowDrag 1222: 拖拽结束', { left, width, top, height, id: a.id });
+              window.dispatchEvent(new CustomEvent('action-move-end', {
+                detail: {
+                  left, width, top, height, id: a.id, fn: (item: TimelineAction) => {
+                    updatedData.push(item)
+
+                    if (updatedData.length === selectedActionIds.length) {
+                      onUpdateEditorData?.(r, updatedData);
+                    }
+                  }
+                }
+              }));
+            }, 0);
+
             return { ...a, start: newStart, end: newEnd };
+          }
+
+          if (a.id === primaryActionId) {
+            updatedData.push(a)
           }
           return a;
         }),

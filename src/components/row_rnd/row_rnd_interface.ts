@@ -1,3 +1,4 @@
+import { TimelineAction } from "@/interface/action";
 import { DragEvent, ResizeEvent } from "@interactjs/types/index";
 
 type EventData = {
@@ -16,7 +17,7 @@ export type RndDragCallback = (
   data: EventData,
   scrollDelta?: number,
 ) => boolean | void;
-export type RndDragEndCallback = (data: Pick<EventData, 'left' | 'width' | 'top' | 'height'>) => void;
+export type RndDragEndCallback = (data: Pick<EventData, 'left' | 'width' | 'top' | 'height'> & { isMultiDrag?: boolean, fn?: (item: TimelineAction) => void }) => void;
 
 export type Direction = "left" | "right";
 export type RndResizeStartCallback = (dir: Direction) => void;

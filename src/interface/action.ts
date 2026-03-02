@@ -30,6 +30,8 @@ export interface TimelineAction {
   url?: string;
   /** 动作是否被禁用 */
   is_disabled?: boolean;
+  /** 动作是否为上传 */
+  isUpload?: boolean;
 }
 
 /**

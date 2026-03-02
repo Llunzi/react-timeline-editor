@@ -1,4 +1,4 @@
-import React, { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import { AutoSizer, Grid, GridCellRenderer, OnScrollParams } from 'react-virtualized';
 import { TimelineAction, TimelineRow } from '../../interface/action';
 import { CommonProp } from '../../interface/common_prop';
@@ -14,6 +14,7 @@ import { Upload, type UploadProps } from 'antd/es';
 import { message } from 'antd/es';
 import { Howl } from 'howler';
 import { useRowDrag } from './hooks/use_row_drag';
+import { ITimelineEngine } from '@/engine/engine';
 
 // 获取音频时长
 const getAudioDuration = (url: string): Promise<number> => {
@@ -57,6 +58,7 @@ export type EditAreaProps = CommonProp & {
   allowCreateTrack?: boolean;
   /** time-editor-container的ref引用 */
   containerRef?: React.MutableRefObject<HTMLDivElement>;
+  engineRef?: React.MutableRefObject<ITimelineEngine>;
 };
 
 /** edit area ref数据 */
@@ -64,7 +66,7 @@ export interface EditAreaState {
   domRef: React.MutableRefObject<HTMLDivElement>;
 }
 
-export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) => {
+const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) => {
   const {
     className,
     isMulti = false,
@@ -94,6 +96,7 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
     setEditorData,
     allowCreateTrack = true,
     containerRef,
+    engineRef,
   } = props;
 
   // 支持mp3\wav格式上传
@@ -122,6 +125,7 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
         url: info.file.response.url,
         start: currentMouseTime,
         end: currentMouseTime + duration,
+        isUpload: true,
       };
 
       onUpdateEditorData?.(row, [newAction]);
@@ -138,12 +142,8 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
   const [dragIndicator, setDragIndicator] = useState<{ targetIndex: number; rowsMoved: number } | null>(null);
 
   // 框选功能
-  const { DragSelection, selectedActionIds } = useRowSelection({
-    editorData,
-    rowHeight,
-    scrollTop,
-    scrollLeft,
-    onSelectionChange: (selectedActionIds) => {
+  const handleSelectionChange = useCallback(
+    (selectedActionIds: string[]) => {
       // 更新 editorData 中每个 action 的选中状态
       const updatedData = editorData.map((row) => ({
         ...row,
@@ -155,11 +155,20 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
       setEditorData(updatedData);
       onMutiSelectChange?.(selectedActionIds);
     },
+    [editorData, setEditorData, onMutiSelectChange],
+  );
+
+  const { DragSelection, selectedActionIds, onClickOutside, onCtrlClick, setSelectedActionIds } = useRowSelection({
+    editorData,
+    rowHeight,
+    scrollTop,
+    scrollLeft,
+    onSelectionChange: handleSelectionChange,
     disabled: false,
     containerRef: editAreaRef,
   });
 
-  const { onDragStart, onDragMove, onDragEnd, getPreviewPosition, isMultiDragging, getMultiDragState } = useRowDrag({
+  const { onDragStart, onDragMove, onDragEnd } = useRowDrag({
     selectedActionIds,
     editorData,
     containerRef: editAreaRef as React.RefObject<HTMLDivElement>,
@@ -169,6 +178,7 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
     setEditorData,
     allowCreateTrack,
     rowHeight,
+    onUpdateEditorData,
   });
 
   // 监听拖拽位置指示器事件
@@ -250,6 +260,49 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
     }
   };
 
+  useEffect(() => {
+    if (!engineRef?.current) return;
+    engineRef.current.on('mousedown', (data) => {
+      console.log('mousedown', data);
+      onClickOutside(data.target);
+    });
+
+    return () => {
+      engineRef?.current?.off('mousedown');
+    };
+  }, [engineRef, onClickOutside]);
+
+  // 监听 Ctrl+ 点击事件
+  useEffect(() => {
+    const handleCtrlClickAction = (e: CustomEvent) => {
+      const { actionId, row } = e.detail;
+
+      console.log('ctrl-click-action', row, ', editorData = ', editorData);
+      setSelectedActionIds((ids) => {
+        const newIds = new Set<string>();
+        ids.forEach((id) => {
+          editorData.forEach((item) => {
+            item.actions.forEach((action) => {
+              if (item.type === row.type && action.id === id) {
+                newIds.add(id);
+              } 
+            });
+          });
+        });
+
+        newIds.add(actionId);
+        handleSelectionChange(Array.from(newIds));
+        return new Set(newIds);
+      });
+    };
+
+    window.addEventListener('ctrl-click-action', handleCtrlClickAction as EventListener);
+
+    return () => {
+      window.removeEventListener('ctrl-click-action', handleCtrlClickAction as EventListener);
+    };
+  }, [onCtrlClick, editorData, handleSelectionChange]);
+
   /** 获取每个cell渲染内容 */
   const cellRenderer: GridCellRenderer = ({ rowIndex, key, style }) => {
     const row = editorData[rowIndex]; // 行数据
@@ -318,7 +371,10 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
             height: data.height || 0,
             up: data.up || 0,
           });
-          return onActionMoveEnd && onActionMoveEnd(data);
+          if (!data.isMultiDrag) {
+            return onActionMoveEnd && onActionMoveEnd(data);
+          }
+          return;
         }}
       />
     );
@@ -409,61 +465,65 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
       </AutoSizer>
       <DragSelection />
       {dragLine && <DragLines scrollLeft={scrollLeft} {...dragLineData} />}
-      {dragIndicator && (() => {
-        // 计算拖拽位置指示器的位置
-        let top = 0;
-        const targetIndex = dragIndicator.targetIndex;
+      {dragIndicator &&
+        (() => {
+          // 计算拖拽位置指示器的位置
+          let top = 0;
+          const targetIndex = dragIndicator.targetIndex;
 
-        for (let i = 0; i < Math.min(targetIndex, editorData.length); i++) {
-          top += editorData[i].rowHeight || rowHeight;
-        }
-
-        return (
-          <div
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: top - scrollTop + 16,
-              height: '3px',
-              backgroundColor: '#1890ff',
-              boxShadow: '0 0 8px rgba(24, 144, 255, 0.6)',
-              zIndex: 1001,
-              pointerEvents: 'none',
-              transition: 'top 0.05s ease-out',
-            }}
-          />
-        );
-      })()}
-      {dropPreview && (() => {
-        // 计算预览指示器的位置
-        let top = 0;
-        for (let i = 0; i < editorData.length; i++) {
-          if (dropPreview.position === 'before' && i === dropPreview.rowIndex) {
-            break;
+          for (let i = 0; i < Math.min(targetIndex, editorData.length); i++) {
+            top += editorData[i].rowHeight || rowHeight;
           }
-          top += editorData[i].rowHeight || rowHeight;
-          if (dropPreview.position === 'after' && i === dropPreview.rowIndex) {
-            break;
-          }
-        }
 
-        return (
-          <div
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: top - scrollTop + 16,
-              height: '2px',
-              backgroundColor: 'transparent',
-              borderTop: '2px dashed #1890ff',
-              zIndex: 1000,
-              pointerEvents: 'none',
-            }}
-          />
-        );
-      })()}
+          return (
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                top: top - scrollTop + 16,
+                height: '3px',
+                backgroundColor: '#1890ff',
+                boxShadow: '0 0 8px rgba(24, 144, 255, 0.6)',
+                zIndex: 1001,
+                pointerEvents: 'none',
+                transition: 'top 0.05s ease-out',
+              }}
+            />
+          );
+        })()}
+      {dropPreview &&
+        (() => {
+          // 计算预览指示器的位置
+          let top = 0;
+          for (let i = 0; i < editorData.length; i++) {
+            if (dropPreview.position === 'before' && i === dropPreview.rowIndex) {
+              break;
+            }
+            top += editorData[i].rowHeight || rowHeight;
+            if (dropPreview.position === 'after' && i === dropPreview.rowIndex) {
+              break;
+            }
+          }
+
+          return (
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                top: top - scrollTop + 16,
+                height: '2px',
+                backgroundColor: 'transparent',
+                borderTop: '2px dashed #1890ff',
+                zIndex: 1000,
+                pointerEvents: 'none',
+              }}
+            />
+          );
+        })()}
     </div>
   );
 });
+
+export const EditArea = React.memo(EditAreaO);
