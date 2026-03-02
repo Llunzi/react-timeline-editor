@@ -216,7 +216,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
               />
             ) : null}
             {areaCount > 1
-              ? <div id='time-editor-container' ref={containerRef} style={{overflow: 'auto'}}>
+              ? <div id='time-editor-container' ref={containerRef}>
                 {
                   Object.keys(groupedData).map((key, index) => {
                 const handleGroupDataChange = (updatedData: TimelineRow[]) => {

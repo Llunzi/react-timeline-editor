@@ -372,7 +372,7 @@ export const EditArea = React.forwardRef<EditAreaState, EditAreaProps>((props, r
           let totalHeight = 0;
           // 高度列表
           const heights = editorData.map((row) => {
-            const itemHeight = row.rowHeight || rowHeight;
+            const itemHeight = (row.rowHeight || rowHeight) + 2;
             totalHeight += itemHeight;
             return itemHeight;
           });

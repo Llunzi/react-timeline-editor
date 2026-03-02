@@ -43,6 +43,7 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
       editorData.forEach((row) => {
         // 检查框选区域是否与 action 相交
         row.actions.forEach((action) => {
+          if (action.is_disabled) return;
           const actionEl = containerRef.current?.querySelector(`.timeline-editor-action[data-action-id="${action.id}"]`) as HTMLElement;
           if (actionEl) {
             const actionRect = actionEl.getBoundingClientRect();
@@ -109,7 +110,7 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
       const element = target as HTMLElement;
 
       if (
-        element.closest?.('.timeline-editor-action') ||
+        element.closest?.('.timeline-editor-action[data-action-disabled="0"]') ||
         element.closest?.('.timeline-editor-edit-action') ||
         element.closest?.('[data-draggable="true"]') ||
         element.closest?.('.timeline-editor-edit-row.dragging')
@@ -148,7 +149,9 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
       if (
         !target.closest('.timeline-editor-selection-box') &&
         !target.closest('.timeline-editor-action') &&
-        !target.closest('[data-draggable="true"]')
+        !target.closest('[data-draggable="true"]') &&
+        !target.closest('.voice-studio-right-config-panel') &&
+        !target.closest('.voice-studio-main-content-panel')
       ) {
         clearSelection();
       }

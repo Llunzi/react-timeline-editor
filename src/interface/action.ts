@@ -28,6 +28,8 @@ export interface TimelineAction {
   maxEnd?: number;
   /** 动作的url */
   url?: string;
+  /** 动作是否被禁用 */
+  is_disabled?: boolean;
 }
 
 /**
