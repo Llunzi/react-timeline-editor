@@ -140,11 +140,11 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
 
       engineRef.current.trigger('mousedown', {
         target,
-        evt: e
+        evt: e,
       });
     };
 
-       document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
@@ -235,26 +235,28 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                 }}
               />
             ) : null}
-            {areaCount > 1
-              ? <div id='time-editor-container' ref={containerRef}>
-                {
-                  Object.keys(groupedData).map((key, index) => {
-                const handleGroupDataChange = (updatedData: TimelineRow[]) => {
-                  const mergedData = editorData.filter(item => String(item.type) !== key).concat(updatedData);
-                  const sortedMergedData = [...mergedData].sort((a, b) => {
-                    const indexA = keys.indexOf(String(a.type));
-                    const indexB = keys.indexOf(String(b.type));
-                    return indexA - indexB;
-                  });
-                  const result = onChange(sortedMergedData);
-                  if (result !== false) {
-                    setEditorData(sortedMergedData);
-                    engineRef.current.data = sortedMergedData;
-                    autoReRender && engineRef.current.reRender();
-                  }
-                };
+            {areaCount > 1 ? (
+              <div id="time-editor-container" ref={containerRef} style={{ height: '100%' }}>
+                {Object.keys(groupedData).map((key, index) => {
+                  const handleGroupDataChange = (updatedData: TimelineRow[]) => {
+                    const mergedData = editorData.filter((item) => String(item.type) !== key).concat(updatedData);
+                    const sortedMergedData = [...mergedData].sort((a, b) => {
+                      const indexA = keys.indexOf(String(a.type));
+                      const indexB = keys.indexOf(String(b.type));
+                      return indexA - indexB;
+                    });
+                    const result = onChange(sortedMergedData);
+                    if (result !== false) {
+                      setEditorData(sortedMergedData);
+                      engineRef.current.data = sortedMergedData;
+                      autoReRender && engineRef.current.reRender();
+                    }
+                  };
 
-                return (
+                  const tEditorData = groupedData[Object.keys(groupedData)[0]];
+                  const _totalHeight = tEditorData.reduce((prev, cur) => prev + (cur.rowHeight || tEditorData[0]?.rowHeight), 0) + ((className || '').indexOf('1') > -1 ? 12 : 32);
+
+                  return (
                     <EditArea
                       key={key}
                       isMulti={areaCount > 1}
@@ -272,6 +274,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                       setEditorData={handleGroupDataChange}
                       deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
                       allowCreateTrack={allowCreateTrack}
+                      minHeight={index === 0 ? undefined : _totalHeight}
                       containerRef={containerRef}
                       onMutiSelectChange={props?.onMutiSelectChange}
                       engineRef={engineRef}
@@ -280,11 +283,10 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                         onScrollVertical && onScrollVertical(params);
                       }}
                     />
-                );
-              })
-                }
+                  );
+                })}
               </div>
-              : null}
+            ) : null}
 
             {!hideCursor && (
               <Cursor

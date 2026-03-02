@@ -42,7 +42,6 @@ export const Cursor: FC<CursorProps> = ({
 }) => {
   const rowRnd = useRef<RowRndApi>();
   const draggingLeft = useRef<undefined | number>();
-
   useEffect(() => {
     if (typeof draggingLeft.current === 'undefined') {
       // 非dragging时，根据穿参更新cursor刻度
@@ -50,10 +49,13 @@ export const Cursor: FC<CursorProps> = ({
     }
   }, [cursorTime, startLeft, scaleWidth, scale, scrollLeft]);
 
+  const clientHeight = document.querySelector("#time-editor-container")?.clientHeight || 0;
+
   return (
     <RowDnd
       top={theme === 'light' ? 16 : 0}
       start={startLeft}
+      height={clientHeight}
       ref={rowRnd}
       parentRef={areaRef}
       bounds={{

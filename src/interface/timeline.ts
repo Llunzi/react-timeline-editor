@@ -288,4 +288,5 @@ export interface TimelineEditor extends EditData {
    */
   onChange?: (editorData: TimelineRow[]) => void | boolean;
   onMutiSelectChange?: (ids: string[]) => void;
+  minHeight?: number;
 }

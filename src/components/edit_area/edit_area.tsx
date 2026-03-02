@@ -59,6 +59,8 @@ export type EditAreaProps = CommonProp & {
   /** time-editor-container的ref引用 */
   containerRef?: React.MutableRefObject<HTMLDivElement>;
   engineRef?: React.MutableRefObject<ITimelineEngine>;
+  /** 最小高度 */
+  minHeight?: number;
 };
 
 /** edit area ref数据 */
@@ -97,12 +99,19 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     allowCreateTrack = true,
     containerRef,
     engineRef,
+    minHeight,
   } = props;
 
-  // 支持mp3\wav格式上传
+  // 支持 mp3\wav 格式上传
   const onBeforeUpload = (file: File) => {
-    if (file.type !== 'audio/mp3' && file.type !== 'audio/wav') {
-      message.error('只能上传mp3wav格式的音频');
+    if (file.type !== 'audio/mp3' && file.type !== 'audio/wav' && file.type !== 'audio/mpeg') {
+      message.error('只能上传 mp3wav 格式的音频');
+      return false;
+    }
+
+    const maxSize = 100 * 1024 * 1024;
+    if (file.size > maxSize) {
+      message.error('文件大小不能超过 100MB');
       return false;
     }
 
@@ -409,7 +418,10 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     gridRef.current.recomputeGridSize();
   }, [editorData]);
 
-  const _totalHeight = editorData.reduce((prev, cur) => prev + (cur.rowHeight || rowHeight), 0) + ((className || '').indexOf('1') > -1 ? 12 : 32);
+  let _totalHeight: number | string = editorData.reduce((prev, cur) => prev + (cur.rowHeight || rowHeight), 0) + ((className || '').indexOf('1') > -1 ? 12 : 32);
+  if (minHeight) {
+    _totalHeight = `calc(100% - ${minHeight + 16}px)`;
+  }
 
   return (
     <div
@@ -420,6 +432,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         maxHeight: isMulti ? _totalHeight : 'unset',
         width: isMulti ? Math.max(scaleCount * scaleWidth + startLeft, 0) : 'unset',
         minWidth: isMulti ? '100%' : 'unset',
+        minHeight: minHeight,
       }}
     >
       <AutoSizer style={{ height: isMulti ? _totalHeight : 'unset' }}>
