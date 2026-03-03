@@ -87,7 +87,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
 
   /** 处理主动数据变化 */
   const handleEditorDataChange = (updatedData: TimelineRow[]) => {
-    const result = onChange(updatedData);
+    const result = onChange?.(updatedData);
     if (result !== false) {
       setEditorData(updatedData);
       engineRef.current.data = updatedData;
@@ -245,7 +245,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                       const indexB = keys.indexOf(String(b.type));
                       return indexA - indexB;
                     });
-                    const result = onChange(sortedMergedData);
+                    const result = onChange?.(sortedMergedData);
                     if (result !== false) {
                       setEditorData(sortedMergedData);
                       engineRef.current.data = sortedMergedData;

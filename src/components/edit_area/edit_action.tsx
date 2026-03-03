@@ -1,5 +1,5 @@
 import React, { FC, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
-import { useDebounceFn } from 'ahooks';
+import { useThrottleFn } from 'ahooks';
 import { TimelineAction, TimelineRow } from '../../interface/action';
 import { CommonProp } from '../../interface/common_prop';
 import { DEFAULT_ADSORPTION_DISTANCE, DEFAULT_MOVE_GRID } from '../../interface/const';
@@ -29,7 +29,7 @@ export type EditActionProps = CommonProp & {
   selectedActionIds?: string[];
 };
 
-export const EditAction: FC<EditActionProps> = ({
+const EditActionO: FC<EditActionProps> = ({
   editorData,
   row,
   action,
@@ -67,10 +67,6 @@ export const EditAction: FC<EditActionProps> = ({
   containerRef,
   selectedActionIds,
 }) => {
-
-
-  console.log('action: selectedActionIds = ', selectedActionIds);
-
   const rowRnd = useRef<RowRndApi>();
   const isDragWhenClick = useRef(false);
   const originalPosition = useRef({ start: 0, end: 0 });
@@ -477,7 +473,7 @@ export const EditAction: FC<EditActionProps> = ({
   ]);
 
   // 防抖版本的 handleDragEnd
-  const { run: handleDragEnd } = useDebounceFn(handleDragEndBase, {
+  const { run: handleDragEnd } = useThrottleFn(handleDragEndBase, {
     wait: 300,
   });
 
@@ -639,3 +635,5 @@ export const EditAction: FC<EditActionProps> = ({
     </RowDnd>
   );
 };
+
+export const EditAction = React.memo(EditActionO);
