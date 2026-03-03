@@ -8,6 +8,7 @@
     border-left: 1px solid #5297ff;
     border-right: 1px solid #5297ff;
     transform: translateX(-25%) scaleX(0.5);
+    transition: transform 0.2s ease-in-out;
 
     &-top {
       position: absolute;
@@ -49,9 +50,11 @@
   .timeline-editor-cursor-area {
      position: relative;
      border: none;
-     width: 1px;
-     background-color: #111;
+     width: 10px;
+     background-color: transparent;
      transform: unset;
      left: 0;
+     transform: translateX(-5px);
+     border-right: 1px solid #111;
   }
 }

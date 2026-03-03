@@ -1,5 +1,6 @@
-import React, { FC, useEffect, useRef, useState } from 'react';
+import React, { FC, useRef, useState } from 'react';
 import { ScrollSync } from 'react-virtualized';
+import { useThrottleEffect } from 'ahooks';
 import { CommonProp } from '../../interface/common_prop';
 import { prefix } from '../../utils/deal_class_prefix';
 import { parserPixelToTime, parserTimeToPixel } from '../../utils/deal_data';
@@ -42,12 +43,21 @@ export const Cursor: FC<CursorProps> = ({
 }) => {
   const rowRnd = useRef<RowRndApi>();
   const draggingLeft = useRef<undefined | number>();
-  useEffect(() => {
-    if (typeof draggingLeft.current === 'undefined') {
-      // 非dragging时，根据穿参更新cursor刻度
-      rowRnd.current.updateLeft(parserTimeToPixel(cursorTime, { startLeft, scaleWidth, scale }) - scrollLeft);
-    }
-  }, [cursorTime, startLeft, scaleWidth, scale, scrollLeft]);
+
+  useThrottleEffect(
+    () => {
+      if (typeof draggingLeft.current === 'undefined') {
+        // 非dragging时，根据穿参更新cursor刻度（防抖）
+        rowRnd.current.updateLeft(
+          parserTimeToPixel(cursorTime, { startLeft, scaleWidth, scale }) - scrollLeft,
+        );
+      }
+    },
+    [cursorTime, startLeft, scaleWidth, scale, scrollLeft],
+    {
+      wait: 800,
+    },
+  );
 
   const clientHeight = document.querySelector("#time-editor-container")?.clientHeight || 0;
 
@@ -102,13 +112,14 @@ export const Cursor: FC<CursorProps> = ({
             theme === 'light' ? '#111111' : '#5297FF'
           }/>
         </svg>
+        <div className={prefix('cursor-area')} />
         {/* <svg className={prefix('cursor-top')} width="8" height="12" viewBox="0 0 8 12" fill="none">
           <path
             d="M0 1C0 0.447715 0.447715 0 1 0H7C7.55228 0 8 0.447715 8 1V9.38197C8 9.76074 7.786 10.107 7.44721 10.2764L4.44721 11.7764C4.16569 11.9172 3.83431 11.9172 3.55279 11.7764L0.552786 10.2764C0.214002 10.107 0 9.76074 0 9.38197V1Z"
             fill="#5297FF"
           />
         </svg> */}
-        <div className={prefix('cursor-area')} />
+       
       </div>
     </RowDnd>
   );
