@@ -173,6 +173,7 @@ export const useRowDrag = (options: UseRowDragOptions) => {
     lastWidth?: number;
     lastTop?: number;
     lastHeight?: number;
+    gap?: number;
   }) => {
     const { actionId, dx, dy } = params;
     const state = multiDragState.current;
@@ -186,7 +187,7 @@ export const useRowDrag = (options: UseRowDragOptions) => {
     if (selectedEls.length === 0) return;
 
     // 更新偏移量
-    state.offsetX = (state.offsetX || 0) + dx;
+    state.offsetX = params.gap;
     state.offsetY = (state.offsetY || 0) + dy;
 
     // 遍历所有选中的元素，同步移动

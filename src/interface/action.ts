@@ -32,6 +32,8 @@ export interface TimelineAction {
   is_disabled?: boolean;
   /** 动作是否为上传 */
   isUpload?: boolean;
+  /** 动作的类型 */
+  segment_type?: string;
 }
 
 /**

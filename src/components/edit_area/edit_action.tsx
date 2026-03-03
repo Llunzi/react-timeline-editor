@@ -73,6 +73,14 @@ const EditActionO: FC<EditActionProps> = ({
   const isMounted = useRef(true); // 组件挂载状态
   const { id, maxEnd, minStart, end, start, selected, flexible = true, movable = true, effectId } = action;
 
+  let originStart = start;
+
+  parserTimeToPixel(originStart, {
+    startLeft,
+    scale,
+    scaleWidth,
+  });
+
   const handleDeltaScrollTop = (delta: number) => {
     if (containerRef?.current) {
       containerRef.current.scrollTop += delta * 2;
@@ -164,7 +172,20 @@ const EditActionO: FC<EditActionProps> = ({
 
     if (onActionMoving) {
       const { start, end } = parserTransformToTime({ left, width }, { scaleWidth, scale, startLeft });
-      const result = onActionMoving({ action, row, start, end, left, width, top, ...args });
+      const g1 = parserTimeToPixel(originStart, {
+        startLeft,
+        scale,
+        scaleWidth,
+      });
+
+      const g2 = parserTimeToPixel(start, {
+        startLeft,
+        scale,
+        scaleWidth,
+      });
+
+      const result = onActionMoving({ action, row, start, end, left, width, top, offsetX: g2 - g1, ...args });
+
       if (result === false) return false;
     }
     if (isMounted.current) {
@@ -173,304 +194,294 @@ const EditActionO: FC<EditActionProps> = ({
     handleScaleCount(left, width);
   };
 
-  const handleDragEndBase = useCallback<RndDragEndCallback>(({ left, width, top, height, isMultiDrag, fn: fnCallback }) => {
+  const handleDragEndBase = useCallback<RndDragEndCallback>(
+    ({ left, width, top, height, isMultiDrag, fn: fnCallback }) => {
+      console.log('handleDragEnd: ', left, width, top, height);
+      // 清理预览指示器
+      if (setDropPreview) {
+        setDropPreview(null);
+      }
 
-    console.log('handleDragEnd: ', left, width, top, height);
-    // 清理预览指示器
-    if (setDropPreview) {
-      setDropPreview(null);
-    }
+      // 计算时间
+      let { start, end } = parserTransformToTime({ left, width }, { scaleWidth, scale, startLeft });
 
-    // 计算时间
-    let { start, end } = parserTransformToTime({ left, width }, { scaleWidth, scale, startLeft });
+      console.log('handleDragEnd start, end : ', start, end);
 
+      // 检测目标row
+      let targetRowIndex = editorData.findIndex((item) => item.id === row.id);
+      let needCreateNewRow = false;
+      let newRowPosition: 'before' | 'after' = 'after';
 
-    console.log('handleDragEnd start, end : ', start, end);
+      if (top !== undefined && height !== undefined) {
+        // 通过Y轴位置计算目标row的索引
+        const currentRowIndex = editorData.findIndex((item) => item.id === row.id);
+        const rowHeightValue = rowHeight || 32; // 使用默认行高或传入的行高
 
-    // 检测目标row
-    let targetRowIndex = editorData.findIndex((item) => item.id === row.id);
-    let needCreateNewRow = false;
-    let newRowPosition: 'before' | 'after' = 'after';
+        // 使用与预览指示器相同的阈值逻辑
+        const threshold = 0.2;
+        const preciseOffset = top / rowHeightValue;
+        const preciseIndex = currentRowIndex + preciseOffset;
 
-    if (top !== undefined && height !== undefined) {
-      // 通过Y轴位置计算目标row的索引
-      const currentRowIndex = editorData.findIndex((item) => item.id === row.id);
-      const rowHeightValue = rowHeight || 32; // 使用默认行高或传入的行高
-
-      // 使用与预览指示器相同的阈值逻辑
-      const threshold = 0.2;
-      const preciseOffset = top / rowHeightValue;
-      const preciseIndex = currentRowIndex + preciseOffset;
-
-      // 检查是否需要创建新轨道
-      if (allowCreateTrack) {
-        if (preciseIndex < -threshold) {
-          // 拖拽到第一个轨道之前，需要在前面创建新轨道
-          needCreateNewRow = true;
-          newRowPosition = 'before';
-          targetRowIndex = 0;
-        } else if (preciseIndex >= editorData.length - 1 + threshold) {
-          // 拖拽到最后一个轨道之后，需要在后面创建新轨道
-          needCreateNewRow = true;
-          newRowPosition = 'after';
-          targetRowIndex = editorData.length;
+        // 检查是否需要创建新轨道
+        if (allowCreateTrack) {
+          if (preciseIndex < -threshold) {
+            // 拖拽到第一个轨道之前，需要在前面创建新轨道
+            needCreateNewRow = true;
+            newRowPosition = 'before';
+            targetRowIndex = 0;
+          } else if (preciseIndex >= editorData.length - 1 + threshold) {
+            // 拖拽到最后一个轨道之后，需要在后面创建新轨道
+            needCreateNewRow = true;
+            newRowPosition = 'after';
+            targetRowIndex = editorData.length;
+          } else {
+            // 在现有轨道范围内，使用四舍五入找到最近的轨道
+            const rowOffset = Math.round(preciseOffset);
+            targetRowIndex = Math.max(0, Math.min(currentRowIndex + rowOffset, editorData.length - 1));
+          }
         } else {
-          // 在现有轨道范围内，使用四舍五入找到最近的轨道
+          // 不允许创建新轨道时，限制在现有轨道范围内
           const rowOffset = Math.round(preciseOffset);
           targetRowIndex = Math.max(0, Math.min(currentRowIndex + rowOffset, editorData.length - 1));
         }
-      } else {
-        // 不允许创建新轨道时，限制在现有轨道范围内
-        const rowOffset = Math.round(preciseOffset);
-        targetRowIndex = Math.max(0, Math.min(currentRowIndex + rowOffset, editorData.length - 1));
-      }
-    }
-
-    // 设置数据
-    const sourceRowItem = editorData.find((item) => item.id === row.id);
-    let targetRowItem: TimelineRow;
-
-    // 如果需要创建新轨道
-    if (needCreateNewRow) {
-      const newRowId = `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      // 计算新轨道的order值
-      let newOrder = 0;
-      if (editorData.length > 0) {
-        const existingOrders = editorData.map(r => r.order || 0);
-        if (newRowPosition === 'before') {
-          // 插入到开头，使用最小order值减1
-          const minOrder = Math.min(...existingOrders);
-          newOrder = minOrder - 1;
-        } else {
-          // 插入到结尾，使用最大order值加1
-          const maxOrder = Math.max(...existingOrders);
-          newOrder = maxOrder + 1;
-        }
       }
 
-      targetRowItem = {
-        id: newRowId,
-        actions: [],
-        rowHeight: rowHeight,
-        type: row.type, // 继承源轨道的type，保持分组一致
-        classNames: row.classNames, // 继承源轨道的classNames
-        canUpload: row.canUpload, // 继承源轨道的canUpload属性
-        order: newOrder, // 设置新轨道的order值
-      };
+      // 设置数据
+      const sourceRowItem = editorData.find((item) => item.id === row.id);
+      let targetRowItem: TimelineRow;
 
-      console.log('Creating new row:', newRowId, 'with type:', row.type, 'order:', newOrder);
+      // 如果需要创建新轨道
+      if (needCreateNewRow) {
+        const newRowId = `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-      // 将新轨道插入到正确的位置
-      if (newRowPosition === 'before') {
-        editorData.unshift(targetRowItem);
-        targetRowIndex = 0;
-        console.log('New row inserted at beginning, index:', targetRowIndex);
-      } else {
-        editorData.push(targetRowItem);
-        targetRowIndex = editorData.length - 1;
-        console.log('New row inserted at end, index:', targetRowIndex);
-      }
-    } else {
-      targetRowItem = editorData[targetRowIndex];
-      console.log('Using existing row:', targetRowItem.id, 'at index:', targetRowIndex);
-    }
-
-    const actionItem = sourceRowItem.actions.find((item) => item.id === id);
-
-    // 碰撞检测函数 - 适用于同一row和跨row
-    const checkAndAdjustCollision = () => {
-      // 获取目标row中除了当前action之外的所有actions
-      const otherActions = targetRowItem.actions.filter((act) => act.id !== id);
-
-      console.log('=== Collision Detection ===');
-      console.log('Current action:', id, 'position:', start, '-', end);
-      console.log('Other actions in target row:', otherActions.map(a => `${a.id}(${a.start}-${a.end})`));
-
-      // 如果没有其他actions,直接使用原时间
-      if (otherActions.length === 0) {
-        console.log('No other actions, using original position');
-        return { start, end, found: true };
-      }
-
-      // 检查是否有碰撞 - 使用更严格的重叠检测
-      const collisions = otherActions.filter((existingAction) => {
-        const hasOverlap = !(end <= existingAction.start || start >= existingAction.end);
-        if (hasOverlap) {
-          console.log('Collision detected with:', existingAction.id, `(${existingAction.start}-${existingAction.end})`);
-        }
-        return hasOverlap;
-      });
-
-      const hasCollision = collisions.length > 0;
-      console.log('Has collision:', hasCollision);
-
-      if (hasCollision) {
-        // 如果有碰撞,尝试找到最近的可用位置
-        const sortedActions = [...otherActions].sort((a, b) => a.start - b.start);
-        const duration = end - start;
-        let foundPosition = false;
-        let minDistance = Number.MAX_SAFE_INTEGER;
-        let bestPosition = { start, end };
-
-        console.log('Sorted actions:', sortedActions.map(a => `${a.id}(${a.start}-${a.end})`).join(', '));
-        console.log('Duration:', duration);
-
-        // 检查第一个action之前的空间
-        if (start < sortedActions[0].start) {
-          if (end <= sortedActions[0].start) {
-            // 当前位置可用,直接使用
-            console.log('Position before first action is available');
-            return { start, end, found: true };
+        // 计算新轨道的order值
+        let newOrder = 0;
+        if (editorData.length > 0) {
+          const existingOrders = editorData.map((r) => r.order || 0);
+          if (newRowPosition === 'before') {
+            // 插入到开头，使用最小order值减1
+            const minOrder = Math.min(...existingOrders);
+            newOrder = minOrder - 1;
           } else {
-            // 需要调整到第一个action之前
-            const candidateEnd = sortedActions[0].start;
-            const candidateStart = candidateEnd - duration;
-            const distance = Math.abs(candidateStart - start);
-            console.log('Candidate before first action:', candidateStart, '-', candidateEnd, 'distance:', distance);
-
-            if (candidateStart < 0) {
-              return { start, end, found: false };
-            }
-            // 检查候选位置的 start 是否小于 0
-            if (candidateStart >= 0 && distance < minDistance) {
-              minDistance = distance;
-              bestPosition = { start: candidateStart, end: candidateEnd };
-              foundPosition = true;
-            }
+            // 插入到结尾，使用最大order值加1
+            const maxOrder = Math.max(...existingOrders);
+            newOrder = maxOrder + 1;
           }
         }
 
-        // 检查每个action之间的间隙
-        for (let i = 0; i < sortedActions.length; i++) {
-          const currentAction = sortedActions[i];
-          const nextAction = sortedActions[i + 1];
+        targetRowItem = {
+          id: newRowId,
+          actions: [],
+          rowHeight: rowHeight,
+          type: row.type, // 继承源轨道的type，保持分组一致
+          classNames: row.classNames, // 继承源轨道的classNames
+          canUpload: row.canUpload, // 继承源轨道的canUpload属性
+          order: newOrder, // 设置新轨道的order值
+        };
 
-          if (nextAction) {
-            const gapStart = currentAction.end;
-            const gapEnd = nextAction.start;
-            const gapSize = gapEnd - gapStart;
+        console.log('Creating new row:', newRowId, 'with type:', row.type, 'order:', newOrder);
 
-            if (gapSize >= duration) {
-              // 间隙足够大,考虑这个位置
-              const candidateStart = gapStart;
+        // 将新轨道插入到正确的位置
+        if (newRowPosition === 'before') {
+          editorData.unshift(targetRowItem);
+          targetRowIndex = 0;
+          console.log('New row inserted at beginning, index:', targetRowIndex);
+        } else {
+          editorData.push(targetRowItem);
+          targetRowIndex = editorData.length - 1;
+          console.log('New row inserted at end, index:', targetRowIndex);
+        }
+      } else {
+        targetRowItem = editorData[targetRowIndex];
+        console.log('Using existing row:', targetRowItem.id, 'at index:', targetRowIndex);
+      }
+
+      const actionItem = sourceRowItem.actions.find((item) => item.id === id);
+
+      // 碰撞检测函数 - 适用于同一row和跨row
+      const checkAndAdjustCollision = () => {
+        // 获取目标row中除了当前action之外的所有actions
+        const otherActions = targetRowItem.actions.filter((act) => act.id !== id);
+
+        console.log('=== Collision Detection ===');
+        console.log('Current action:', id, 'position:', start, '-', end);
+        console.log(
+          'Other actions in target row:',
+          otherActions.map((a) => `${a.id}(${a.start}-${a.end})`),
+        );
+
+        // 如果没有其他actions,直接使用原时间
+        if (otherActions.length === 0) {
+          console.log('No other actions, using original position');
+          return { start, end, found: true };
+        }
+
+        // 检查是否有碰撞 - 使用更严格的重叠检测
+        const collisions = otherActions.filter((existingAction) => {
+          const hasOverlap = !(end <= existingAction.start || start >= existingAction.end);
+          if (hasOverlap) {
+            console.log('Collision detected with:', existingAction.id, `(${existingAction.start}-${existingAction.end})`);
+          }
+          return hasOverlap;
+        });
+
+        const hasCollision = collisions.length > 0;
+        console.log('Has collision:', hasCollision);
+
+        if (hasCollision) {
+          // 如果有碰撞,尝试找到最近的可用位置
+          const sortedActions = [...otherActions].sort((a, b) => a.start - b.start);
+          const duration = end - start;
+          let foundPosition = false;
+          let minDistance = Number.MAX_SAFE_INTEGER;
+          let bestPosition = { start, end };
+
+          console.log('Sorted actions:', sortedActions.map((a) => `${a.id}(${a.start}-${a.end})`).join(', '));
+          console.log('Duration:', duration);
+
+          // 检查第一个action之前的空间
+          if (start < sortedActions[0].start) {
+            if (end <= sortedActions[0].start) {
+              // 当前位置可用,直接使用
+              console.log('Position before first action is available');
+              return { start, end, found: true };
+            } else {
+              // 需要调整到第一个action之前
+              const candidateEnd = sortedActions[0].start;
+              const candidateStart = candidateEnd - duration;
+              const distance = Math.abs(candidateStart - start);
+              console.log('Candidate before first action:', candidateStart, '-', candidateEnd, 'distance:', distance);
+
+              if (candidateStart < 0) {
+                return { start, end, found: false };
+              }
+              // 检查候选位置的 start 是否小于 0
+              if (candidateStart >= 0 && distance < minDistance) {
+                minDistance = distance;
+                bestPosition = { start: candidateStart, end: candidateEnd };
+                foundPosition = true;
+              }
+            }
+          }
+
+          // 检查每个action之间的间隙
+          for (let i = 0; i < sortedActions.length; i++) {
+            const currentAction = sortedActions[i];
+            const nextAction = sortedActions[i + 1];
+
+            if (nextAction) {
+              const gapStart = currentAction.end;
+              const gapEnd = nextAction.start;
+              const gapSize = gapEnd - gapStart;
+
+              if (gapSize >= duration) {
+                // 间隙足够大,考虑这个位置
+                const candidateStart = gapStart;
+                const candidateEnd = candidateStart + duration;
+                const distance = Math.abs(candidateStart - start);
+                console.log(`Gap between ${currentAction.id} and ${nextAction.id}:`, gapStart, '-', gapEnd, 'size:', gapSize, 'candidate:', candidateStart, '-', candidateEnd, 'distance:', distance);
+                if (distance < minDistance) {
+                  minDistance = distance;
+                  bestPosition = { start: candidateStart, end: candidateEnd };
+                  foundPosition = true;
+                }
+              }
+            } else {
+              // 最后一个action之后
+              const candidateStart = Math.max(start, currentAction.end);
               const candidateEnd = candidateStart + duration;
               const distance = Math.abs(candidateStart - start);
-              console.log(`Gap between ${currentAction.id} and ${nextAction.id}:`, gapStart, '-', gapEnd, 'size:', gapSize, 'candidate:', candidateStart, '-', candidateEnd, 'distance:', distance);
+              console.log('Candidate after last action:', candidateStart, '-', candidateEnd, 'distance:', distance);
               if (distance < minDistance) {
                 minDistance = distance;
                 bestPosition = { start: candidateStart, end: candidateEnd };
                 foundPosition = true;
               }
             }
+          }
+
+          console.log('Best position found:', foundPosition, bestPosition);
+          if (foundPosition) {
+            return { start: bestPosition.start, end: bestPosition.end, found: true };
           } else {
-            // 最后一个action之后
-            const candidateStart = Math.max(start, currentAction.end);
-            const candidateEnd = candidateStart + duration;
-            const distance = Math.abs(candidateStart - start);
-            console.log('Candidate after last action:', candidateStart, '-', candidateEnd, 'distance:', distance);
-            if (distance < minDistance) {
-              minDistance = distance;
-              bestPosition = { start: candidateStart, end: candidateEnd };
-              foundPosition = true;
-            }
+            return { start, end, found: false };
           }
         }
 
-        console.log('Best position found:', foundPosition, bestPosition);
-        if (foundPosition) {
-          return { start: bestPosition.start, end: bestPosition.end, found: true };
-        } else {
-          return { start, end, found: false };
+        console.log('No collision, using original position');
+        return { start, end, found: true };
+      };
+
+      // 执行碰撞检测和调整
+      const adjustmentResult = checkAndAdjustCollision();
+
+      if (!adjustmentResult.found) {
+        // 如果找不到合适位置,回到原始位置
+        console.warn('Cannot find suitable position, reverting to original position');
+        // 恢复原始位置的transform
+        const originalTransform = parserTimeToTransform(originalPosition.current, { startLeft, scale, scaleWidth });
+        setTransform({ ...originalTransform, top: 0 });
+        return;
+      }
+
+      // 使用调整后的时间
+      start = adjustmentResult.start;
+      end = adjustmentResult.end;
+
+      console.log('Final position:', start, '-', end);
+
+      // 更新action的时间
+      actionItem.start = start;
+      actionItem.end = end;
+
+      console.log('handleDragEnd actionItem: ', targetRowItem, row);
+
+      // 如果拖拽到了不同的row,需要移动action
+      if (targetRowItem.id !== row.id) {
+        console.log('Moving action to different row');
+        console.log('Source row:', row.id, 'Target row:', targetRowItem.id);
+        console.log('Is new row:', needCreateNewRow);
+        console.log('Target row actions before:', targetRowItem.actions.length);
+
+        // 从原row中移除
+        sourceRowItem.actions = sourceRowItem.actions.filter((item) => item.id !== id);
+        // 添加到目标row
+        targetRowItem.actions.push(actionItem);
+
+        console.log('Target row actions after:', targetRowItem.actions.length);
+        console.log('Action added:', actionItem.id);
+
+        // 如果源轨道没有action了，删除源轨道
+        if (sourceRowItem.actions.length === 0) {
+          console.log('Source row is empty, removing it:', sourceRowItem.id);
+          const sourceRowIndex = editorData.findIndex((item) => item.id === sourceRowItem.id);
+          if (sourceRowIndex !== -1) {
+            editorData.splice(sourceRowIndex, 1);
+            console.log('Source row removed at index:', sourceRowIndex);
+          }
         }
       }
 
-      console.log('No collision, using original position');
-      return { start, end, found: true };
-    };
+      setEditorData([...editorData]);
 
-    // 执行碰撞检测和调整
-    const adjustmentResult = checkAndAdjustCollision();
+      // 更新transform以反映新位置
+      const newTransform = parserTimeToTransform({ start, end }, { startLeft, scale, scaleWidth });
 
-    if (!adjustmentResult.found) {
-      // 如果找不到合适位置,回到原始位置
-      console.warn('Cannot find suitable position, reverting to original position');
-      // 恢复原始位置的transform
-      const originalTransform = parserTimeToTransform(originalPosition.current, { startLeft, scale, scaleWidth });
-      setTransform({ ...originalTransform, top: 0 });
-      return;
-    }
+      setTransform({ ...newTransform, top: 0 });
 
-    // 使用调整后的时间
-    start = adjustmentResult.start;
-    end = adjustmentResult.end;
+      let up = 0; // -1 向上移动，1 向下移动，0 不移动
 
-    console.log('Final position:', start, '-', end);
-
-    // 更新action的时间
-    actionItem.start = start;
-    actionItem.end = end;
-
-    console.log('handleDragEnd actionItem: ', targetRowItem, row);
-
-    // 如果拖拽到了不同的row,需要移动action
-    if (targetRowItem.id !== row.id) {
-      console.log('Moving action to different row');
-      console.log('Source row:', row.id, 'Target row:', targetRowItem.id);
-      console.log('Is new row:', needCreateNewRow);
-      console.log('Target row actions before:', targetRowItem.actions.length);
-
-      // 从原row中移除
-      sourceRowItem.actions = sourceRowItem.actions.filter((item) => item.id !== id);
-      // 添加到目标row
-      targetRowItem.actions.push(actionItem);
-
-      console.log('Target row actions after:', targetRowItem.actions.length);
-      console.log('Action added:', actionItem.id);
-
-      // 如果源轨道没有action了，删除源轨道
-      if (sourceRowItem.actions.length === 0) {
-        console.log('Source row is empty, removing it:', sourceRowItem.id);
-        const sourceRowIndex = editorData.findIndex((item) => item.id === sourceRowItem.id);
-        if (sourceRowIndex !== -1) {
-          editorData.splice(sourceRowIndex, 1);
-          console.log('Source row removed at index:', sourceRowIndex);
-        }
+      if (targetRowItem.id !== row.id) {
+        up = top > 0 ? 1 : -1;
       }
-    }
 
-    setEditorData([...editorData]);
-
-    // 更新transform以反映新位置
-    const newTransform = parserTimeToTransform({ start, end }, { startLeft, scale, scaleWidth });
-
-    setTransform({ ...newTransform, top: 0 });
-
-    let up = 0 // -1 向上移动，1 向下移动，0 不移动
-
-    if (targetRowItem.id !== row.id) {
-      up = top > 0 ? 1 : -1;
-    }
-
-    fnCallback?.(actionItem);
-    // 执行回调
-    if (onActionMoveEnd) onActionMoveEnd({ action: actionItem, row: targetRowItem, start, end, isNewRow: needCreateNewRow, left, width, top, height, up, isMultiDrag: selectedActionIds?.length > 1 || isMultiDrag });
-  }, [
-    action,
-    allowCreateTrack,
-    editorData,
-    id,
-    onActionMoveEnd,
-    parserTimeToTransform,
-    parserTransformToTime,
-    row,
-    scale,
-    scaleWidth,
-    setDropPreview,
-    setEditorData,
-    startLeft,
-    selectedActionIds,
-  ]);
+      fnCallback?.(actionItem);
+      // 执行回调
+      if (onActionMoveEnd)
+        onActionMoveEnd({ action: actionItem, row: targetRowItem, start, end, isNewRow: needCreateNewRow, left, width, top, height, up, isMultiDrag: selectedActionIds?.length > 1 || isMultiDrag });
+    },
+    [action, allowCreateTrack, editorData, id, onActionMoveEnd, parserTimeToTransform, parserTransformToTime, row, scale, scaleWidth, setDropPreview, setEditorData, startLeft, selectedActionIds],
+  );
 
   // 防抖版本的 handleDragEnd
   const { run: handleDragEnd } = useThrottleFn(handleDragEndBase, {
@@ -525,11 +536,11 @@ const EditActionO: FC<EditActionProps> = ({
     nowRow.actions[row.actions.indexOf(action)] = nowAction;
   }
 
-  const currentRowIndex = editorData.findIndex(item => item.id === row.id);
+  const currentRowIndex = editorData.findIndex((item) => item.id === row.id);
 
   useEffect(() => {
     const handleActionMoveEnd = (e: CustomEvent) => {
-      const { left, width, top, height, id, fn } = e.detail || {}
+      const { left, width, top, height, id, fn } = e.detail || {};
 
       console.log('handleActionMoveEnd: ', left, width, top, height, id, fn);
 
@@ -594,7 +605,7 @@ const EditActionO: FC<EditActionProps> = ({
             if (!time) time = handleTime(e);
             onClickActionOnly(e, { row, action, time: time });
           }
-          
+
           // 处理 Ctrl+ 点击选择
           if (e.ctrlKey || e.metaKey) {
             e.preventDefault();
@@ -603,8 +614,8 @@ const EditActionO: FC<EditActionProps> = ({
               detail: {
                 actionId: action.id,
                 row,
-                originalEvent: e.nativeEvent
-              }
+                originalEvent: e.nativeEvent,
+              },
             });
             window.dispatchEvent(event);
           }
@@ -625,12 +636,16 @@ const EditActionO: FC<EditActionProps> = ({
         style={{ height: rowHeight }}
       >
         {getActionRender && getActionRender(nowAction, nowRow)}
-        {flexible && <div className={prefix('action-left-stretch')} >
-          <img src={stretchIcon} alt="" />
-        </div>}
-        {flexible && <div className={prefix('action-right-stretch')} >
-          <img src={stretchIcon} alt="" />
-        </div>}
+        {flexible && (
+          <div className={prefix('action-left-stretch')}>
+            <img src={stretchIcon} alt="" />
+          </div>
+        )}
+        {flexible && (
+          <div className={prefix('action-right-stretch')}>
+            <img src={stretchIcon} alt="" />
+          </div>
+        )}
       </div>
     </RowDnd>
   );

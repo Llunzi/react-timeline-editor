@@ -135,6 +135,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         start: currentMouseTime,
         end: currentMouseTime + duration,
         isUpload: true,
+        segment_type: 'bgm',
       };
 
       onUpdateEditorData?.(row, [newAction]);
@@ -358,6 +359,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
             lastWidth: data.lastWidth,
             lastTop: data.lastTop,
             lastHeight: data.lastHeight,
+            gap: data.offsetX || 0,
           });
           return onActionMoving && onActionMoving(data);
         }}
@@ -466,7 +468,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
               columnWidth={Math.max(scaleCount * scaleWidth + startLeft, width)}
               width={width}
               height={height}
-              rowHeight={({ index }) => heights[index] || rowHeight}
+              rowHeight={({ index }) => heights[index] || rowHeight || 0}
               overscanRowCount={10}
               overscanColumnCount={0}
               onScroll={(param) => {
