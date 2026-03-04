@@ -55,7 +55,7 @@ export const Cursor: FC<CursorProps> = ({
     },
     [cursorTime, startLeft, scaleWidth, scale, scrollLeft],
     {
-      wait: 800,
+      wait: 10,
     },
   );
 

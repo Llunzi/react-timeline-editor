@@ -56,12 +56,13 @@ export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCurs
             <>
               <Grid
                 ref={gridRef}
+                containerStyle={{ width: timelineWidth + 10, maxWidth: timelineWidth + 10 }}
                 columnCount={showUnit ? scaleCount * scaleSplitCount + 1 : scaleCount}
                 columnWidth={getColumnWidth}
                 estimatedColumnSize={estColumnWidth}
                 rowCount={1}
                 rowHeight={height}
-                width={timelineWidth}
+                width={timelineWidth + 10}
                 // width={width}
                 height={height}
                 overscanRowCount={0}

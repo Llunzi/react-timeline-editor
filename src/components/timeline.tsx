@@ -185,7 +185,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
     if (areaRef.current) {
       const resizeObserver = new ResizeObserver(() => {
         if (!areaRef.current) return;
-        setWidth(areaRef.current.getBoundingClientRect().width);
+        setWidth(areaRef.current.getBoundingClientRect().width + 10);
       });
       resizeObserver.observe(areaRef.current!);
       return () => {
