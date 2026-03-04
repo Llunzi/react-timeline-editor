@@ -287,6 +287,10 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     const handleCtrlClickAction = (e: CustomEvent) => {
       const { actionId, row } = e.detail;
 
+      if (row.type !== editorData[0]?.type) {
+        return;
+      }
+
       console.log('ctrl-click-action', row, ', editorData = ', editorData);
       setSelectedActionIds((ids) => {
         const newIds = new Set<string>();

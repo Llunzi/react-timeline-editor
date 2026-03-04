@@ -170,7 +170,8 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
         !target.closest('.timeline-editor-action') &&
         !target.closest('[data-draggable="true"]') &&
         !target.closest('.voice-studio-right-config-panel') &&
-        !target.closest('.voice-studio-main-content-panel')
+        !target.closest('.voice-studio-main-content-panel') &&
+        !target.closest('.ant-modal')
       ) {
         clearSelection();
       }
