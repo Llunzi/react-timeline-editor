@@ -48,15 +48,17 @@ export type EditAreaProps = CommonProp & {
   onScroll: (params: OnScrollParams) => void;
   /** 设置编辑器数据 */
   setEditorData: (params: TimelineRow[]) => void;
-  /** 设置scroll left */
+  /** 设置 scroll left */
   deltaScrollLeft: (scrollLeft: number) => void;
+  /** 设置光标位置 */
+  setCursor: (param: { left?: number; time?: number }) => void;
   /** 是否可以上传 */
   canUpload?: boolean;
   /** 自定义上传请求 */
   customRequest?: UploadProps['customRequest'];
   /** 允许拖拽创建新轨道 */
   allowCreateTrack?: boolean;
-  /** time-editor-container的ref引用 */
+  /** time-editor-container 的 ref 引用 */
   containerRef?: React.MutableRefObject<HTMLDivElement>;
   engineRef?: React.MutableRefObject<ITimelineEngine>;
   /** 最小高度 */
@@ -96,6 +98,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     canUpload = false,
     customRequest,
     setEditorData,
+    setCursor,
     allowCreateTrack = true,
     containerRef,
     engineRef,
@@ -299,7 +302,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
             item.actions.forEach((action) => {
               if (item.type === row.type && action.id === id) {
                 newIds.add(id);
-              } 
+              }
             });
           });
         });
@@ -317,15 +320,37 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     };
   }, [onCtrlClick, editorData, handleSelectionChange]);
 
+  const saveUploader = (uploader: any) => {
+    uploadRef.current = uploader;
+  };
+
   /** 获取每个cell渲染内容 */
   const cellRenderer: GridCellRenderer = ({ rowIndex, key, style }) => {
     const row = editorData[rowIndex]; // 行数据
 
+    const uploadBgMusic = (file: File[]) => {
+      const canUpload = onBeforeUpload?.(file[0]);
+      if (!canUpload) return;
+
+      const onSuccess = handleUploadChange(row);
+      customRequest?.({
+        file: file[0],
+        onSuccess,
+        method: 'POST',
+        action: 'bgm',
+        onError: (err) => {
+          console.error('Upload error:', err);
+        },
+      });
+    };
+
     const editRow = (
       <EditRow
         {...props}
+        uploadBgMusic={uploadBgMusic}
         style={{
           ...style,
+          zIndex: rowIndex + 10,
           backgroundPositionX: `0, ${startLeft}px`,
           backgroundSize: `${startLeft}px, ${scaleWidth}px`,
         }}
@@ -338,6 +363,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         setDropPreview={setDropPreview}
         containerRef={containerRef}
         selectedActionIds={selectedActionIds}
+        setCursor={setCursor}
         onActionMoveStart={(data) => {
           handleInitDragLine(data);
           onDragStart({ action: data.action, row: data.row });
@@ -395,21 +421,27 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     );
 
     if (!!row && (canUpload || row?.canUpload)) {
+      const isDefaultMusic = row.actions?.[0]?.id === 'upload-bg-music';
+      
+      const tChildren = isDefaultMusic ? editRow : null;
       return (
-        <Upload
-          ref={uploadRef}
-          key={key + 'upload'}
-          style={{ width: '100%', display: 'block', ...style, top: 0 }}
-          beforeUpload={onBeforeUpload}
-          onChange={handleUploadChange(row)}
-          showUploadList={false}
-          openFileDialogOnClick={row.actions?.filter((item) => item.effectId === 'effect2').length > 0}
-          customRequest={customRequest}
-          onDrop={handleDrop}
-          type="drag"
-        >
-          {editRow}
-        </Upload>
+        <>
+          <Upload
+            ref={uploadRef}
+            key={key + 'upload'}
+            style={{ width: '100%', display: 'block', position: 'relative', ...style }}
+            beforeUpload={onBeforeUpload}
+            onChange={handleUploadChange(row)}
+            showUploadList={false}
+            openFileDialogOnClick={row.actions?.filter((item) => item.effectId === 'effect2').length > 0}
+            customRequest={customRequest}
+            onDrop={handleDrop}
+            type="drag"
+          >
+            {tChildren}
+          </Upload>
+          {tChildren ? null : editRow}
+        </>
       );
     }
 

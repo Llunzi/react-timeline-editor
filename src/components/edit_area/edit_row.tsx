@@ -15,16 +15,19 @@ export type EditRowProps = CommonProp & {
   setEditorData: (params: TimelineRow[]) => void;
   /** 距离左侧滚动距离 */
   scrollLeft: number;
-  /** 设置scroll left */
+  /** 设置 scroll left */
   deltaScrollLeft: (scrollLeft: number) => void;
   /** 允许拖拽创建新轨道 */
   allowCreateTrack?: boolean;
   /** 设置预览指示器位置 */
   setDropPreview?: (preview: { position: 'before' | 'after'; rowIndex: number } | null) => void;
-  /** time-editor-container的ref引用 */
+  /** time-editor-container 的 ref 引用 */
   containerRef?: React.MutableRefObject<HTMLDivElement>;
   /** 选中的 action IDs */
   selectedActionIds?: string[];
+  /** 设置光标位置 */
+  setCursor?: (param: { left?: number; time?: number }) => void;
+  uploadBgMusic?: (file: File[]) => void;
 };
 
 export const EditRow: FC<EditRowProps> = (props) => {
@@ -42,6 +45,9 @@ export const EditRow: FC<EditRowProps> = (props) => {
     allowCreateTrack,
     containerRef,
     selectedActionIds = [],
+    setCursor,
+    hideCursor,
+    uploadBgMusic,
   } = props;
 
   const classNames = ['edit-row'];
@@ -58,16 +64,33 @@ export const EditRow: FC<EditRowProps> = (props) => {
 
   return (
     <div
-      className={`${prefix(...classNames)} ${(rowData?.classNames || []).join(
-        ' ',
-      )}`}
+      className={`${prefix(...classNames)} ${(rowData?.classNames || []).join(' ')}`}
       style={style}
       data-row-id={rowData?.id}
       data-y="0"
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (rowData.canUpload) {
+          const files = e.dataTransfer.files;
+          uploadBgMusic?.(Array.from(files));
+        }
+      }}
       onClick={(e) => {
+        const action = (e.target as HTMLElement)?.closest('.timeline-editor-action');
+        const time = handleTime(e);
         if (rowData && onClickRow) {
-          const time = handleTime(e);
           onClickRow(e, { row: rowData, time: time });
+        }
+
+        if (hideCursor) return;
+        if (setCursor && !action) {
+          setCursor({ time });
         }
       }}
       onDoubleClick={(e) => {

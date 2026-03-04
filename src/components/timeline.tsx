@@ -226,6 +226,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                 scrollLeft={scrollLeft}
                 engineRef={engineRef}
                 setEditorData={handleEditorDataChange}
+                setCursor={handleSetCursor}
                 deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
                 allowCreateTrack={allowCreateTrack}
                 onMutiSelectChange={props?.onMutiSelectChange}
@@ -272,6 +273,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                       scrollTop={scrollTop}
                       scrollLeft={scrollLeft}
                       setEditorData={handleGroupDataChange}
+                      setCursor={handleSetCursor}
                       deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
                       allowCreateTrack={allowCreateTrack}
                       minHeight={index === 0 ? undefined : _totalHeight}
