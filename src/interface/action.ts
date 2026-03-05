@@ -34,6 +34,9 @@ export interface TimelineAction {
   isUpload?: boolean;
   /** 动作的类型 */
   segment_type?: string;
+  /** 动作是否正在上传 */
+  isUploading?: boolean;
+  [key: string]: any;
 }
 
 /**

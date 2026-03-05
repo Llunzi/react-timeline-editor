@@ -78,6 +78,8 @@ export const EditRow: FC<EditRowProps> = (props) => {
 
         if (rowData.canUpload) {
           const files = e.dataTransfer.files;
+          // @ts-expect-error 因为 files 是 FileList 类型，不能直接修改 uid 属性
+          files[0].uid = new Date().getTime().toString();
           uploadBgMusic?.(Array.from(files));
         }
       }}

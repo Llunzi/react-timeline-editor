@@ -108,7 +108,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
   // 支持 mp3\wav 格式上传
   const onBeforeUpload = (file: File) => {
     if (file.type !== 'audio/mp3' && file.type !== 'audio/wav' && file.type !== 'audio/mpeg') {
-      message.error('只能上传 mp3wav 格式的音频');
+      message.error('只能上传mp3、wav格式的音频');
       return false;
     }
 
@@ -124,7 +124,31 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
   const handleUploadChange = (row: TimelineRow) => {
     return async (info: any) => {
       console.log('Upload info:', info);
-      if (!info.file || !info.file.response) {
+      if (!info.file) return;
+      if (!info.file.response) {
+        const totalDuration =
+          row.actions.reduce(
+            (max, current) => {
+              const currentEnd = current.end || 0;
+              const maxEnd = max?.end ?? 0;
+              return currentEnd > maxEnd ? current : max;
+            },
+            { end: 0 },
+          ).end || 0;
+
+        const newAction: TimelineAction = {
+          id: info.file.uid,
+          effectId: 'custom_video_effect',
+          flexible: true,
+          url: '',
+          start: totalDuration,
+          end: totalDuration + 5,
+          isUpload: true,
+          segment_type: 'bgm',
+          isUploading: info.isUploading || false,
+        };
+
+        onUpdateEditorData?.(row, [newAction]);
         return;
       }
       const uid = info.file.uid;
@@ -139,6 +163,8 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         end: currentMouseTime + duration,
         isUpload: true,
         segment_type: 'bgm',
+        isUploading: false,
+        uid: info.file?.uid,
       };
 
       onUpdateEditorData?.(row, [newAction]);
@@ -333,12 +359,14 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
       if (!canUpload) return;
 
       const onSuccess = handleUploadChange(row);
+      onSuccess({ file: file[0], isUploading: true });
       customRequest?.({
         file: file[0],
         onSuccess,
         method: 'POST',
         action: 'bgm',
         onError: (err) => {
+          onSuccess({ file: file[0], isUploading: false });
           console.error('Upload error:', err);
         },
       });
@@ -422,7 +450,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
 
     if (!!row && (canUpload || row?.canUpload)) {
       const isDefaultMusic = row.actions?.[0]?.id === 'upload-bg-music';
-      
+
       const tChildren = isDefaultMusic ? editRow : null;
       return (
         <>
