@@ -289,7 +289,7 @@ export class TimelineEngine extends Emitter<EventTypes> implements ITimelineEngi
       const actionId = this._actionSortIds[this._next];
       const action = this._actionMap[actionId];
 
-      if (!action.disable) {
+      if (!action.disable && !action.is_disabled) {
         // 判断动作开始时间是否到达
 
         if (action.start > time) break;
