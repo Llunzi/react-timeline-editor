@@ -14,7 +14,7 @@ import stretchIcon from '../../assets/stretch.svg';
 export type EditActionProps = CommonProp & {
   row: TimelineRow;
   action: TimelineAction;
-  dragLineData: DragLineData;
+  dragLineData?: DragLineData;
   setEditorData: (params: TimelineRow[]) => void;
   handleTime: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => number;
   areaRef: React.MutableRefObject<HTMLDivElement>;
@@ -72,6 +72,7 @@ const EditActionO: FC<EditActionProps> = ({
   const originalPosition = useRef({ start: 0, end: 0 });
   const isMounted = useRef(true); // 组件挂载状态
   const { id, maxEnd, minStart, end, start, selected, flexible = true, movable = true, effectId } = action;
+  const [dragging, setDragging] = useState(false);
 
   let originStart = start;
 
@@ -141,6 +142,7 @@ const EditActionO: FC<EditActionProps> = ({
   //#region [rgba(100,120,156,0.08)] 回调
   const handleDragStart: RndDragStartCallback = () => {
     // 保存原始位置
+    setDragging(true);
     originalPosition.current = { start: action.start, end: action.end };
     onActionMoveStart && onActionMoveStart({ action, row });
   };
@@ -197,6 +199,7 @@ const EditActionO: FC<EditActionProps> = ({
   const handleDragEndBase = useCallback<RndDragEndCallback>(
     ({ left, width, top, height, isMultiDrag, fn: fnCallback }) => {
       console.log('handleDragEnd: ', left, width, top, height);
+      setDragging(false);
       // 清理预览指示器
       if (setDropPreview) {
         setDropPreview(null);
@@ -567,7 +570,7 @@ const EditActionO: FC<EditActionProps> = ({
       height={rowHeight}
       grid={(gridSnap && gridSize) || DEFAULT_MOVE_GRID}
       adsorptionDistance={gridSnap ? Math.max((gridSize || DEFAULT_MOVE_GRID) / 2, DEFAULT_ADSORPTION_DISTANCE) : DEFAULT_ADSORPTION_DISTANCE}
-      adsorptionPositions={dragLineData.assistPositions}
+      // adsorptionPositions={dragLineData?.assistPositions}
       bounds={{
         left: leftLimit,
         right: rightLimit,
@@ -591,6 +594,7 @@ const EditActionO: FC<EditActionProps> = ({
     >
       <div
         data-action-id={action.id}
+        data-action-drag={dragging}
         data-action-disabled={action.is_disabled ? 1 : 0}
         onMouseDown={() => {
           isDragWhenClick.current = false;

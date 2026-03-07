@@ -1,4 +1,4 @@
-import React, { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, useMemo } from 'react';
 import { ScrollSync } from 'react-virtualized';
 import { ITimelineEngine, TimelineEngine } from '../engine/engine';
 import { MIN_SCALE_COUNT, PREFIX, START_CURSOR_TIME } from '../interface/const';
@@ -10,6 +10,7 @@ import { EditArea } from './edit_area/edit_area';
 import './timeline.less';
 import { TimeArea } from './time_area/time_area';
 import { groupBy } from 'lodash-es';
+import { DragLineController, DragLineControllerRef } from './edit_area/hooks/drag_line_controller';
 
 export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, ref) => {
   const checkedProps = checkProps(props);
@@ -21,6 +22,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
     autoScroll,
     hideCursor,
     disableDrag,
+    dragLine,
     scale,
     scaleWidth,
     startLeft,
@@ -51,6 +53,8 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
   const [isPlaying, setIsPlaying] = useState(false);
   // 当前时间轴宽度
   const [width, setWidth] = useState(Number.MAX_SAFE_INTEGER);
+
+  const dragLineControllerRef = useRef<DragLineControllerRef>(null);
 
   const groupedData: Record<string, TimelineRow[]> = groupBy(editorData, 'type');
   const areaCount = Object.keys(groupedData).length;
@@ -122,6 +126,24 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
     scrollSync.current && scrollSync.current.setState({ scrollLeft: Math.max(scrollSync.current.state.scrollLeft + delta, 0) });
   };
 
+  const handleInitDragLine = useCallback((data: any) => {
+    checkedProps.onActionMoveStart?.(data);
+    checkedProps.onActionResizeStart?.(data);
+    dragLineControllerRef.current?.initDragLine(data);
+  }, [checkedProps]);
+
+  const handleUpdateDragLine = useCallback((data: any) => {
+    checkedProps.onActionMoving?.(data);
+    checkedProps.onActionResizing?.(data);
+    dragLineControllerRef.current?.updateDragLine(data);
+  }, [checkedProps]);
+
+  const handleDisposeDragLine = useCallback((data: any) => {
+    checkedProps.onActionMoveEnd?.(data);
+    checkedProps.onActionResizeEnd?.(data);
+    dragLineControllerRef.current?.disposeDragLine();
+  }, [checkedProps]);
+
   // 处理运行器相关数据
   useEffect(() => {
     const handleTime = ({ time }) => {
@@ -180,6 +202,21 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
     },
   }));
 
+  const onClickTimeline = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+    if (!domRef.current) return;
+    const rect = domRef.current.getBoundingClientRect();;
+    const position = e.clientX - rect.x;
+    const left = position + scrollSync.current.state.scrollLeft;
+    const time = parserPixelToTime(left, { startLeft, scale, scaleWidth });
+
+    const action = (e.target as HTMLElement)?.closest('.timeline-editor-action');
+    if (action || hideCursor) return;
+    
+    console.log('onClickTimeline = ', time);
+
+    handleSetCursor({ time });
+  };
+
   // 监听timeline区域宽度变化
   useEffect(() => {
     if (areaRef.current) {
@@ -230,6 +267,12 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                 deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
                 allowCreateTrack={allowCreateTrack}
                 onMutiSelectChange={props?.onMutiSelectChange}
+                onActionMoveStart={handleInitDragLine}
+                onActionResizeStart={handleInitDragLine}
+                onActionMoving={handleUpdateDragLine}
+                onActionResizing={handleUpdateDragLine}
+                onActionMoveEnd={handleDisposeDragLine}
+                onActionResizeEnd={handleDisposeDragLine}
                 onScroll={(params) => {
                   onScroll(params);
                   onScrollVertical && onScrollVertical(params);
@@ -237,7 +280,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
               />
             ) : null}
             {areaCount > 1 ? (
-              <div id="time-editor-container" ref={containerRef} style={{ height: '100%' }}>
+              <div id="time-editor-container" ref={containerRef} style={{ height: '100%' }} onClick={onClickTimeline}>
                 {Object.keys(groupedData).map((key, index) => {
                   const handleGroupDataChange = (updatedData: TimelineRow[]) => {
                     const mergedData = editorData.filter((item) => String(item.type) !== key).concat(updatedData);
@@ -280,6 +323,12 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                       containerRef={containerRef}
                       onMutiSelectChange={props?.onMutiSelectChange}
                       engineRef={engineRef}
+                      onActionMoveStart={handleInitDragLine}
+                      onActionResizeStart={handleInitDragLine}
+                      onActionMoving={handleUpdateDragLine}
+                      onActionResizing={handleUpdateDragLine}
+                      onActionMoveEnd={handleDisposeDragLine}
+                      onActionResizeEnd={handleDisposeDragLine}
                       onScroll={(params) => {
                         onScroll(params);
                         onScrollVertical && onScrollVertical(params);
@@ -306,6 +355,18 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                 deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
               />
             )}
+            <DragLineController
+              ref={dragLineControllerRef}
+              dragLine={dragLine}
+              editorData={editorData}
+              cursorTime={cursorTime}
+              scale={scale}
+              scaleWidth={scaleWidth}
+              startLeft={startLeft}
+              hideCursor={hideCursor}
+              scrollLeft={scrollLeft}
+              getAssistDragLineActionIds={checkedProps.getAssistDragLineActionIds}
+            />
           </>
         )}
       </ScrollSync>

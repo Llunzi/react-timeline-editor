@@ -15,6 +15,8 @@ export class Events {
       paused: [],
       ended: [],
       mousedown: [],
+       "effect-play": [],
+       "effect-leave": [],
       ...handlers,
     };
   }
@@ -77,4 +79,18 @@ export interface EventTypes {
    * @memberof EventTypes
    */
   mousedown: { target: HTMLElement; evt: MouseEvent };
+
+  /**
+   * 特效播放事件
+   * @type {{ id: string }}
+   * @memberof EventTypes
+   */
+  "effect-play": { id: string };
+
+  /**
+   * 特效离开事件
+   * @type {{ id: string }}
+   * @memberof EventTypes
+   */
+  "effect-leave": { id: string };
 }

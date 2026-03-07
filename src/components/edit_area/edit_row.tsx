@@ -11,7 +11,7 @@ export type EditRowProps = CommonProp & {
   areaRef: React.MutableRefObject<HTMLDivElement>;
   rowData?: TimelineRow;
   style?: React.CSSProperties;
-  dragLineData: DragLineData;
+  dragLineData?: DragLineData;
   setEditorData: (params: TimelineRow[]) => void;
   /** 距离左侧滚动距离 */
   scrollLeft: number;
@@ -84,16 +84,16 @@ export const EditRow: FC<EditRowProps> = (props) => {
         }
       }}
       onClick={(e) => {
-        const action = (e.target as HTMLElement)?.closest('.timeline-editor-action');
+        // const action = (e.target as HTMLElement)?.closest('.timeline-editor-action');
         const time = handleTime(e);
         if (rowData && onClickRow) {
           onClickRow(e, { row: rowData, time: time });
         }
 
-        if (hideCursor) return;
-        if (setCursor && !action) {
-          setCursor({ time });
-        }
+        // if (hideCursor) return;
+        // if (setCursor && !action) {
+        //   setCursor({ time });
+        // }
       }}
       onDoubleClick={(e) => {
         if (rowData && onDoubleClickRow) {

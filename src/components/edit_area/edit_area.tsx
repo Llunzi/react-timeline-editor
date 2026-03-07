@@ -5,10 +5,8 @@ import { CommonProp } from '../../interface/common_prop';
 import { EditData } from '../../interface/timeline';
 import { prefix } from '../../utils/deal_class_prefix';
 import { parserTimeToPixel, parserPixelToTime } from '../../utils/deal_data';
-import { DragLines } from './drag_lines';
 import './edit_area.less';
 import { EditRow } from './edit_row';
-import { useDragLine } from './hooks/use_drag_line';
 import { useRowSelection } from './hooks/use_row_selection';
 import { Upload, type UploadProps } from 'antd/es';
 import { message } from 'antd/es';
@@ -171,7 +169,6 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     };
   };
 
-  const { dragLineData, initDragLine, updateDragLine, disposeDragLine, defaultGetAssistPosition, defaultGetMovePosition } = useDragLine();
   const editAreaRef = useRef<HTMLDivElement>();
   const gridRef = useRef<Grid>();
   const [currentMouseTime, setCurrentMouseTime] = useState<number>(0);
@@ -263,40 +260,11 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
   }));
 
   const handleInitDragLine: EditData['onActionMoveStart'] = (data) => {
-    if (dragLine) {
-      const assistActionIds =
-        getAssistDragLineActionIds &&
-        getAssistDragLineActionIds({
-          action: data.action,
-          row: data.row,
-          editorData,
-        });
-      const cursorLeft = parserTimeToPixel(cursorTime, { scaleWidth, scale, startLeft });
-      const assistPositions = defaultGetAssistPosition({
-        editorData,
-        assistActionIds,
-        action: data.action,
-        row: data.row,
-        scale,
-        scaleWidth,
-        startLeft,
-        hideCursor,
-        cursorLeft,
-      });
-      initDragLine({ assistPositions });
-    }
+    onActionMoveStart?.(data);
   };
 
   const handleUpdateDragLine: EditData['onActionMoving'] = (data) => {
-    if (dragLine) {
-      const movePositions = defaultGetMovePosition({
-        ...data,
-        startLeft,
-        scaleWidth,
-        scale,
-      });
-      updateDragLine({ movePositions });
-    }
+    onActionMoving?.(data);
   };
 
   useEffect(() => {
@@ -386,7 +354,6 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         key={key}
         rowHeight={row?.rowHeight || rowHeight}
         rowData={row}
-        dragLineData={dragLineData}
         allowCreateTrack={allowCreateTrack}
         setDropPreview={setDropPreview}
         containerRef={containerRef}
@@ -426,11 +393,9 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
           return onActionResizing && onActionResizing(data);
         }}
         onActionResizeEnd={(data) => {
-          disposeDragLine();
           return onActionResizeEnd && onActionResizeEnd(data);
         }}
         onActionMoveEnd={(data) => {
-          disposeDragLine();
           // 传递拖拽结束参数给多选拖拽处理
           onDragEnd({
             actionId: data.action.id,
@@ -543,7 +508,6 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         }}
       </AutoSizer>
       <DragSelection />
-      {dragLine && <DragLines scrollLeft={scrollLeft} {...dragLineData} />}
       {dragIndicator &&
         (() => {
           // 计算拖拽位置指示器的位置
