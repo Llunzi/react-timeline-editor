@@ -123,16 +123,33 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     return async (info: any) => {
       console.log('Upload info:', info);
       if (!info.file) return;
+      if (info.file.status === 'error') {
+        onUpdateEditorData?.(row, [
+          {
+            id: info.file.uid,
+            isUploading: false,
+            start: 0,
+            end: 0,
+            effectId: 'custom_video_effect',
+            isError: true,
+            segment_type: 'bgm',
+            uid: info.file.uid,
+          },
+        ]);
+        return;
+      }
       if (!info.file.response) {
-        const totalDuration =
-          row.actions.reduce(
-            (max, current) => {
-              const currentEnd = current.end || 0;
-              const maxEnd = max?.end ?? 0;
-              return currentEnd > maxEnd ? current : max;
-            },
-            { end: 0 },
-          ).end || 0;
+        const hasDefault = row.actions.some((action) => action.id === 'upload-bg-music');
+        const totalDuration = hasDefault
+          ? 0
+          : row.actions.reduce(
+              (max, current) => {
+                const currentEnd = current.end || 0;
+                const maxEnd = max?.end ?? 0;
+                return currentEnd > maxEnd ? current : max;
+              },
+              { end: 0 },
+            ).end || 0;
 
         const newAction: TimelineAction = {
           id: info.file.uid,
