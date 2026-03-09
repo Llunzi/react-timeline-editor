@@ -24,7 +24,7 @@ export const DragLines: FC<DragLineProps> = memo(({
   const tolerance = 5; // 容差范围，单位像素
 
   return(
-    <div className={prefix('drag-line-container')} style={{ height: height || '100%' }}>
+    <div className={prefix('drag-line-container')} style={{ height: height ? (height + 30) : 0 || '100%' }}>
       {
          isMoving && movePositions.map((movePos) => {
           // 查找在容差范围内的辅助线位置

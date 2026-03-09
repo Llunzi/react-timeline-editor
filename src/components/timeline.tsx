@@ -9,7 +9,7 @@ import { Cursor } from './cursor/cursor';
 import { EditArea } from './edit_area/edit_area';
 import './timeline.less';
 import { TimeArea } from './time_area/time_area';
-import { groupBy } from 'lodash-es';
+import { groupBy, throttle } from 'lodash-es';
 import { DragLineController, DragLineControllerRef } from './edit_area/hooks/drag_line_controller';
 
 export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, ref) => {
@@ -229,6 +229,22 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
         resizeObserver && resizeObserver.disconnect();
       };
     }
+  }, []);
+
+  useEffect(() => {
+    const containerEl = document.querySelector('.timeline-editor');
+    
+    const handleScroll = throttle((e: Event) => {
+      console.log('scroll', e);
+      scrollSync.current && scrollSync.current.setState({ scrollLeft: (e.target as HTMLElement).scrollLeft || 0 });
+    }, 100);
+
+    containerEl.addEventListener('scroll', handleScroll);
+
+    return () => {
+      containerEl.removeEventListener('scroll', handleScroll);
+      handleScroll.cancel();
+    };
   }, []);
 
   return (

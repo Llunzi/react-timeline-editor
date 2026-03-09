@@ -123,6 +123,9 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     return async (info: any) => {
       console.log('Upload info:', info);
       if (!info.file) return;
+      if (info.file.type !== 'audio/mp3' && info.file.type !== 'audio/wav' && info.file.type !== 'audio/mpeg') {
+        return false;
+      }
       if (info.file.status === 'error') {
         onUpdateEditorData?.(row, [
           {
@@ -367,6 +370,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
           backgroundPositionX: `0, ${startLeft}px`,
           backgroundSize: `${startLeft}px, ${scaleWidth}px`,
         }}
+        scrollLeft={scrollLeft}
         areaRef={editAreaRef}
         key={key}
         rowHeight={row?.rowHeight || rowHeight}
@@ -447,6 +451,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
             customRequest={customRequest}
             onDrop={handleDrop}
             type="drag"
+            accept="audio/mp3,audio/wav,audio/mpeg"
           >
             {tChildren}
           </Upload>
@@ -504,6 +509,8 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
             }
           }
           heightRef.current = height;
+
+          console.log('Math.max(scaleCount * scaleWidth + startLeft, width)', Math.max(scaleCount * scaleWidth + startLeft, width), ', width', width);
 
           return (
             <Grid

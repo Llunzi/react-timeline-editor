@@ -63,7 +63,7 @@ export const Cursor: FC<CursorProps> = ({
 
   return (
     <RowDnd
-      top={theme === 'light' ? 16 : 0}
+      top={theme === 'light' ? 26 : 0}
       start={startLeft}
       height={clientHeight}
       ref={rowRnd}

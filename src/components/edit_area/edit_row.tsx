@@ -53,6 +53,12 @@ export const EditRow: FC<EditRowProps> = (props) => {
   const classNames = ['edit-row'];
   if (rowData?.selected) classNames.push('selected');
 
+  const clientWidth = document.documentElement.clientWidth;
+  const timeStart = parserPixelToTime(scrollLeft, { startLeft, scale, scaleWidth });
+  const timeEnd = parserPixelToTime(scrollLeft + clientWidth + 200, { startLeft, scale, scaleWidth });
+
+  console.log('time = ', timeStart, ', timeEnd = ', timeEnd);
+
   const handleTime = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
     if (!areaRef.current) return;
     const rect = areaRef.current.getBoundingClientRect();
@@ -108,19 +114,21 @@ export const EditRow: FC<EditRowProps> = (props) => {
         }
       }}
     >
-      {(rowData?.actions || []).map((action) => (
-        <EditAction
-          key={action.id}
-          {...props}
-          handleTime={handleTime}
-          row={rowData}
-          action={action}
-          allowCreateTrack={allowCreateTrack}
-          setDropPreview={props.setDropPreview}
-          containerRef={containerRef}
-          selectedActionIds={selectedActionIds}
-        />
-      ))}
+      {(rowData?.actions || [])
+        .filter((action) => action.end >= timeStart && action.start <= timeEnd)
+        .map((action) => (
+          <EditAction
+            key={action.id}
+            {...props}
+            handleTime={handleTime}
+            row={rowData}
+            action={action}
+            allowCreateTrack={allowCreateTrack}
+            setDropPreview={props.setDropPreview}
+            containerRef={containerRef}
+            selectedActionIds={selectedActionIds}
+          />
+        ))}
     </div>
   );
 };
