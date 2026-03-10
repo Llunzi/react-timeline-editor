@@ -340,11 +340,8 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     uploadRef.current = uploader;
   };
 
-  /** 获取每个cell渲染内容 */
-  const cellRenderer: GridCellRenderer = ({ rowIndex, key, style }) => {
-    const row = editorData[rowIndex]; // 行数据
-
-    const uploadBgMusic = (file: File[]) => {
+  const uploadBgMusic = useCallback(
+    (file: File[], row?: TimelineRow) => {
       const canUpload = onBeforeUpload?.(file[0]);
       if (!canUpload) return;
 
@@ -360,7 +357,13 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
           console.error('Upload error:', err);
         },
       });
-    };
+    },
+    [onBeforeUpload, handleUploadChange, customRequest],
+  );
+
+  /** 获取每个cell渲染内容 */
+  const cellRenderer: GridCellRenderer = ({ rowIndex, key, style }) => {
+    const row = editorData[rowIndex]; // 行数据
 
     const editRow = (
       <EditRow
@@ -436,31 +439,31 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
       />
     );
 
-    if (!!row && (canUpload || row?.canUpload)) {
-      const isDefaultMusic = row.actions?.[0]?.id === 'upload-bg-music';
+    // if (!!row && (canUpload || row?.canUpload)) {
+    //   const isDefaultMusic = row.actions?.[0]?.id === 'upload-bg-music';
 
-      const tChildren = isDefaultMusic ? editRow : null;
-      return (
-        <>
-          <Upload
-            ref={uploadRef}
-            key={key + 'upload'}
-            style={{ width: '100%', display: 'block', position: 'relative', ...style }}
-            beforeUpload={onBeforeUpload}
-            onChange={handleUploadChange(row)}
-            showUploadList={false}
-            openFileDialogOnClick={row.actions?.filter((item) => item.effectId === 'effect2').length > 0}
-            customRequest={customRequest}
-            onDrop={handleDrop}
-            type="drag"
-            accept="audio/mp3,audio/wav,audio/mpeg"
-          >
-            {tChildren}
-          </Upload>
-          {tChildren ? null : editRow}
-        </>
-      );
-    }
+    //   const tChildren = isDefaultMusic ? editRow : null;
+    //   return (
+    //     <>
+    //       <Upload
+    //         ref={uploadRef}
+    //         key={key + 'upload'}
+    //         style={{ width: '100%', display: 'block', position: 'relative', ...style }}
+    //         beforeUpload={onBeforeUpload}
+    //         onChange={handleUploadChange(row)}
+    //         showUploadList={false}
+    //         openFileDialogOnClick={row.actions?.filter((item) => item.effectId === 'effect2').length > 0}
+    //         customRequest={customRequest}
+    //         onDrop={handleDrop}
+    //         type="drag"
+    //         accept="audio/mp3,audio/wav,audio/mpeg"
+    //       >
+    //         {tChildren}
+    //       </Upload>
+    //       {tChildren ? null : editRow}
+    //     </>
+    //   );
+    // }
 
     return editRow;
   };
@@ -472,6 +475,19 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
   useEffect(() => {
     gridRef.current.recomputeGridSize();
   }, [editorData]);
+
+  useEffect(() => {
+    const row = editorData[0]; // 行数据
+    if (!row || row.type !== 'bg') {
+      return;
+    }
+    engineRef.current?.on('upload-bg-music', (e) => {
+      uploadBgMusic([e.file], row);
+    });
+    return () => {
+      engineRef.current?.off('upload-bg-music');
+    };
+  }, [engineRef, uploadBgMusic, editorData]);
 
   let _totalHeight: number | string = editorData.reduce((prev, cur) => prev + (cur.rowHeight || rowHeight), 0) + ((className || '').indexOf('1') > -1 ? 12 : 32);
   if (minHeight) {

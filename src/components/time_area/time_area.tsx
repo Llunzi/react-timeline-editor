@@ -23,12 +23,23 @@ export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCurs
   /** 是否显示细分刻度 */
   const showUnit = scaleSplitCount > 0;
 
-  /** 获取每个cell渲染内容 */
+  const clientWidth = document.documentElement.clientWidth;
+
+  /** 获取每个 cell 渲染内容 */
   const cellRenderer: GridCellRenderer = ({ columnIndex, key, style }) => {
     const isShowScale = showUnit ? columnIndex % scaleSplitCount === 0 : true;
     const classNames = ['time-unit'];
     if (isShowScale) classNames.push('time-unit-big');
     const item = (showUnit ? columnIndex / scaleSplitCount : columnIndex) * scale;
+    
+    const cellPixel = startLeft + columnIndex * (showUnit ? scaleWidth / scaleSplitCount : scaleWidth);
+    const cellWidth = showUnit ? scaleWidth / scaleSplitCount : scaleWidth;
+    const isVisible = cellPixel + cellWidth >= scrollLeft - 50 && cellPixel <= scrollLeft + clientWidth + 50;
+    
+    if (!isVisible) {
+      return null;
+    }
+    
     return (
       <div key={key} style={style} className={prefix(...classNames)}>
         {isShowScale && <div className={prefix('time-unit-scale')}>{getScaleRender ? getScaleRender(item) : item}</div>}

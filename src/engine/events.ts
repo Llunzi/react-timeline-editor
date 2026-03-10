@@ -17,6 +17,7 @@ export class Events {
       mousedown: [],
        "effect-play": [],
        "effect-leave": [],
+       "upload-bg-music": [],
       ...handlers,
     };
   }
@@ -93,4 +94,11 @@ export interface EventTypes {
    * @memberof EventTypes
    */
   "effect-leave": { id: string };
+
+  /**
+   * 上传背景音乐事件
+   * @type {{ file: File }}
+   * @memberof EventTypes
+   */
+  "upload-bg-music": { file: File };
 }
