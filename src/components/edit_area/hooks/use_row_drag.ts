@@ -269,9 +269,9 @@ export const useRowDrag = (options: UseRowDragOptions) => {
     if (up === 0) {
       top = 0;
     } else if (up === 1) {
-      top = -20;
+      top = 35;
     } else if (up === -1) {
-      top = 20;
+      top = -35;
     }
 
     // 如果没有初始位置数据，说明不是有效的多选拖拽

@@ -4,6 +4,7 @@ import { AutoSizer, Grid, GridCellRenderer, OnScrollParams } from 'react-virtual
 import { CommonProp } from '../../interface/common_prop';
 import { prefix } from '../../utils/deal_class_prefix';
 import './time_area.less';
+import { CursorApi } from '../cursor/cursor';
 
 /** 动画时间轴组件参数 */
 export type TimeAreaProps = CommonProp & {
@@ -13,10 +14,11 @@ export type TimeAreaProps = CommonProp & {
   onScroll: (params: OnScrollParams) => void;
   /** 设置光标位置 */
   setCursor: (param: { left?: number; time?: number }) => void;
+  cursorRef: React.RefObject<CursorApi>;
 };
 
 /** 动画时间轴组件 */
-export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCursor, scale, scaleWidth, scaleCount, scaleSplitCount, startLeft, scrollLeft, onClickTimeArea, getScaleRender, timelineWidth }) => {
+export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCursor, scale, scaleWidth, scaleCount, scaleSplitCount, startLeft, scrollLeft, onClickTimeArea, getScaleRender, timelineWidth, cursorRef }) => {
   const gridRef = useRef<Grid>();
   /** 是否显示细分刻度 */
   const showUnit = scaleSplitCount > 0;
@@ -81,7 +83,7 @@ export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCurs
 
                   const time = parserPixelToTime(left, { startLeft, scale, scaleWidth });
                   const result = onClickTimeArea && onClickTimeArea(time, e);
-                  if (result === false) return; // 返回false时阻止设置时间
+                  if (result === false) return; // 返回 false 时阻止设置时间
                   setCursor({ time });
                 }}
                 className={prefix('time-area-interact')}

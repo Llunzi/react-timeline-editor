@@ -448,6 +448,7 @@ const EditActionO: FC<EditActionProps> = ({
 
         // 从原row中移除
         sourceRowItem.actions = sourceRowItem.actions.filter((item) => item.id !== id);
+        actionItem.order = targetRowItem.order;
         // 添加到目标row
         targetRowItem.actions.push(actionItem);
 

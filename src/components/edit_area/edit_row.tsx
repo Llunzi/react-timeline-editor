@@ -1,4 +1,4 @@
-import React, { FC } from 'react';
+import React, { FC, useState, useEffect, useMemo, useCallback } from 'react';
 import { TimelineRow } from '../../interface/action';
 import { CommonProp } from '../../interface/common_prop';
 import { prefix } from '../../utils/deal_class_prefix';
@@ -50,23 +50,49 @@ export const EditRow: FC<EditRowProps> = (props) => {
     uploadBgMusic,
   } = props;
 
+  const [visibleCount, setVisibleCount] = useState(20);
+
   const classNames = ['edit-row'];
   if (rowData?.selected) classNames.push('selected');
 
   const clientWidth = document.documentElement.clientWidth;
-  const timeStart = parserPixelToTime(scrollLeft, { startLeft, scale, scaleWidth });
-  const timeEnd = parserPixelToTime(scrollLeft + clientWidth + 200, { startLeft, scale, scaleWidth });
+  const timeStart = parserPixelToTime(scrollLeft - 400, { startLeft, scale, scaleWidth });
+  const timeEnd = parserPixelToTime(scrollLeft + clientWidth + 400, { startLeft, scale, scaleWidth });
 
-  console.log('time = ', timeStart, ', timeEnd = ', timeEnd);
+  const visibleActions = useMemo(() => {
+    return (rowData?.actions || [])
+      .filter((action) => action.end >= timeStart && action.start <= timeEnd)
+      .sort((a, b) => a.start - b.start);
+  }, [rowData?.actions, timeStart, timeEnd]);
 
-  const handleTime = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
-    if (!areaRef.current) return;
-    const rect = areaRef.current.getBoundingClientRect();
-    const position = e.clientX - rect.x;
-    const left = position + scrollLeft;
-    const time = parserPixelToTime(left, { startLeft, scale, scaleWidth });
-    return time;
-  };
+  const renderActions = useMemo(() => {
+    return visibleActions.slice(0, visibleCount);
+  }, [visibleActions, visibleCount]);
+
+  useEffect(() => {
+    if (visibleCount < visibleActions.length) {
+      const timer = requestAnimationFrame(() => {
+        setVisibleCount((prev) => Math.min(prev + 20, visibleActions.length));
+      });
+      return () => cancelAnimationFrame(timer);
+    }
+  }, [visibleCount, visibleActions.length]);
+
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [rowData?.id]);
+
+  const handleTime = useCallback(
+    (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+      if (!areaRef.current) return;
+      const rect = areaRef.current.getBoundingClientRect();
+      const position = e.clientX - rect.x;
+      const left = position + scrollLeft;
+      const time = parserPixelToTime(left, { startLeft, scale, scaleWidth });
+      return time;
+    },
+    [areaRef, scrollLeft, startLeft, scale, scaleWidth]
+  );
 
   return (
     <div
@@ -114,21 +140,19 @@ export const EditRow: FC<EditRowProps> = (props) => {
         }
       }}
     >
-      {(rowData?.actions || [])
-        .filter((action) => action.end >= timeStart && action.start <= timeEnd)
-        .map((action) => (
-          <EditAction
-            key={action.id}
-            {...props}
-            handleTime={handleTime}
-            row={rowData}
-            action={action}
-            allowCreateTrack={allowCreateTrack}
-            setDropPreview={props.setDropPreview}
-            containerRef={containerRef}
-            selectedActionIds={selectedActionIds}
-          />
-        ))}
+      {renderActions.map((action) => (
+        <EditAction
+          key={action.id}
+          {...props}
+          handleTime={handleTime}
+          row={rowData}
+          action={action}
+          allowCreateTrack={allowCreateTrack}
+          setDropPreview={props.setDropPreview}
+          containerRef={containerRef}
+          selectedActionIds={selectedActionIds}
+        />
+      ))}
     </div>
   );
 };

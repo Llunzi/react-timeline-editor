@@ -123,6 +123,8 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     return async (info: any) => {
       console.log('Upload info:', info);
       if (!info.file) return;
+      const maxSize = 100 * 1024 * 1024;
+      if (info.file.size > maxSize) return false;
       if (info.file.type !== 'audio/mp3' && info.file.type !== 'audio/wav' && info.file.type !== 'audio/mpeg') {
         return false;
       }
@@ -509,8 +511,6 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
             }
           }
           heightRef.current = height;
-
-          console.log('Math.max(scaleCount * scaleWidth + startLeft, width)', Math.max(scaleCount * scaleWidth + startLeft, width), ', width', width);
 
           return (
             <Grid

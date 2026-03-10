@@ -1,18 +1,18 @@
 import React, { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, useMemo } from 'react';
-import { ScrollSync } from 'react-virtualized';
+import { ScrollSync, OnScrollParams } from 'react-virtualized';
 import { ITimelineEngine, TimelineEngine } from '../engine/engine';
 import { MIN_SCALE_COUNT, PREFIX, START_CURSOR_TIME } from '../interface/const';
 import { TimelineEditor, TimelineRow, TimelineState } from '../interface/timeline';
 import { checkProps } from '../utils/check_props';
 import { getScaleCountByRows, parserPixelToTime, parserTimeToPixel } from '../utils/deal_data';
-import { Cursor } from './cursor/cursor';
+import { Cursor, CursorApi } from './cursor/cursor';
 import { EditArea } from './edit_area/edit_area';
 import './timeline.less';
 import { TimeArea } from './time_area/time_area';
 import { groupBy, throttle } from 'lodash-es';
 import { DragLineController, DragLineControllerRef } from './edit_area/hooks/drag_line_controller';
 
-export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, ref) => {
+export const Timeline = React.memo(React.forwardRef<TimelineState, TimelineEditor>((props, ref) => {
   const checkedProps = checkProps(props);
   const { style, className, theme } = props;
   let {
@@ -40,6 +40,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
   const areaRef = useRef<HTMLDivElement>();
   const scrollSync = useRef<ScrollSync>();
   const containerRef = useRef<HTMLDivElement>();
+  const cursorRef = useRef<CursorApi>(null);
 
   console.log(' Timeline mounted = ', areaRef);
 
@@ -83,11 +84,11 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
     scrollSync.current && scrollSync.current.setState({ scrollTop: scrollTop });
   }, [scrollTop]);
 
-  /** 动态设置scale count */
-  const handleSetScaleCount = (value: number) => {
+  /** 动态设置 scale count */
+  const handleSetScaleCount = useCallback((value: number) => {
     const data = Math.min(maxScaleCount, Math.max(minScaleCount, value));
     setScaleCount(data);
-  };
+  }, [maxScaleCount, minScaleCount]);
 
   /** 处理主动数据变化 */
   const handleEditorDataChange = (updatedData: TimelineRow[]) => {
@@ -100,7 +101,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
   };
 
   /** 处理光标 */
-  const handleSetCursor = (param: { left?: number; time?: number; updateTime?: boolean }) => {
+  const handleSetCursor = useCallback((param: { left?: number; time?: number; updateTime?: boolean }) => {
     let { left, time, updateTime = true } = param;
     if (typeof left === 'undefined' && typeof time === 'undefined') return;
 
@@ -116,15 +117,15 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
     }
     result && setCursorTime(time);
     return result;
-  };
+  }, [startLeft, scale, scaleWidth, autoReRender]);
 
-  /** 设置scrollLeft */
-  const handleDeltaScrollLeft = (delta: number) => {
+  /** 设置 scrollLeft */
+  const handleDeltaScrollLeft = useCallback((delta: number) => {
     // 当超过最大距离时，禁止自动滚动
     const data = scrollSync.current.state.scrollLeft + delta;
     if (data > scaleCount * (scaleWidth - 1) + startLeft - width) return;
     scrollSync.current && scrollSync.current.setState({ scrollLeft: Math.max(scrollSync.current.state.scrollLeft + delta, 0) });
-  };
+  }, [scaleCount, scaleWidth, startLeft, width]);
 
   const handleInitDragLine = useCallback((data: any) => {
     checkedProps.onActionMoveStart?.(data);
@@ -143,6 +144,11 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
     checkedProps.onActionResizeEnd?.(data);
     dragLineControllerRef.current?.disposeDragLine();
   }, [checkedProps]);
+
+  /** 处理滚动回调 */
+  const onScroll = useCallback((params: OnScrollParams) => {
+    onScrollVertical && onScrollVertical(params);
+  }, [onScrollVertical]);
 
   // 处理运行器相关数据
   useEffect(() => {
@@ -202,7 +208,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
     },
   }));
 
-  const onClickTimeline = (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+  const onClickTimeline = useCallback((e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
     if (!domRef.current) return;
     const rect = domRef.current.getBoundingClientRect();;
     const position = e.clientX - rect.x;
@@ -215,7 +221,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
     console.log('onClickTimeline = ', time);
 
     handleSetCursor({ time });
-  };
+  }, [startLeft, scale, scaleWidth, hideCursor, handleSetCursor]);
 
   // 监听timeline区域宽度变化
   useEffect(() => {
@@ -263,6 +269,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
               setScaleCount={handleSetScaleCount}
               onScroll={onScroll}
               scrollLeft={scrollLeft}
+              cursorRef={cursorRef}
             />
 
             {areaCount === 1 ? (
@@ -345,10 +352,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
                       onActionResizing={handleUpdateDragLine}
                       onActionMoveEnd={handleDisposeDragLine}
                       onActionResizeEnd={handleDisposeDragLine}
-                      onScroll={(params) => {
-                        onScroll(params);
-                        onScrollVertical && onScrollVertical(params);
-                      }}
+                      onScroll={onScroll}
                     />
                   );
                 })}
@@ -358,6 +362,7 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
             {!hideCursor && (
               <Cursor
                 {...checkedProps}
+                ref={cursorRef}
                 timelineWidth={width}
                 disableDrag={isPlaying}
                 scrollLeft={scrollLeft}
@@ -388,4 +393,4 @@ export const Timeline = React.forwardRef<TimelineState, TimelineEditor>((props, 
       </ScrollSync>
     </div>
   );
-});
+}));
