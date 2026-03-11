@@ -228,7 +228,7 @@ export const Timeline = React.memo(
       setScrollLeftFromTime: (val) => {
         const containerEl = document.querySelector('.timeline-editor');
         if (!containerEl) return;
-        const left = startLeft + scaleWidth / scale * val;
+        const left = startLeft + (scaleWidth / scale) * val;
         containerEl.scrollLeft = Math.max(left, 0);
         scrollSync.current && scrollSync.current.setState({ scrollLeft: Math.max(left, 0) });
       },
@@ -269,10 +269,13 @@ export const Timeline = React.memo(
       }
     }, []);
 
+    const containerEl = document.querySelector('.timeline-editor');
+
     useEffect(() => {
       const containerEl = document.querySelector('.timeline-editor');
 
       const handleScroll = throttle((e: Event) => {
+        console.log('handleScroll', e);
         const scrollLeft = (e.target as HTMLElement).scrollLeft || 0;
         scrollSync.current && scrollSync.current.setState({ scrollLeft });
 
@@ -301,143 +304,150 @@ export const Timeline = React.memo(
       };
     }, [startLeft, scale, scaleWidth]);
 
+
+    console.log('Timeline cursorTime = ', cursorTime);
+
     return (
       <div ref={domRef} style={style} className={`${className || ''} ${theme || ''} ${PREFIX} ${disableDrag ? PREFIX + '-disable' : ''}`}>
         <ScrollSync ref={scrollSync}>
-          {({ scrollLeft, scrollTop, onScroll }) => (
-            <>
-              <TimeArea
-                {...checkedProps}
-                timelineWidth={width}
-                disableDrag={disableDrag || isPlaying}
-                setCursor={handleSetCursor}
-                cursorTime={cursorTime}
-                editorData={editorData}
-                scaleCount={scaleCount}
-                setScaleCount={handleSetScaleCount}
-                onScroll={onScroll}
-                scrollLeft={scrollLeft}
-                cursorRef={cursorRef}
-              />
-
-              {areaCount === 1 ? (
-                <EditArea
+          {({ scrollTop, onScroll }) => {
+            const scrollLeft = containerEl?.scrollLeft || 0;
+            
+            return (
+              <>
+                <TimeArea
                   {...checkedProps}
                   timelineWidth={width}
-                  ref={(ref) => ((areaRef.current as any) = ref?.domRef.current)}
                   disableDrag={disableDrag || isPlaying}
-                  editorData={editorData}
-                  cursorTime={cursorTime}
-                  scaleCount={scaleCount}
-                  setScaleCount={handleSetScaleCount}
-                  scrollTop={scrollTop}
-                  scrollLeft={scrollLeft}
-                  engineRef={engineRef}
-                  setEditorData={handleEditorDataChange}
-                  setCursor={handleSetCursor}
-                  deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
-                  allowCreateTrack={allowCreateTrack}
-                  onMutiSelectChange={props?.onMutiSelectChange}
-                  onActionMoveStart={handleInitDragLine}
-                  onActionResizeStart={handleInitDragLine}
-                  onActionMoving={handleUpdateDragLine}
-                  onActionResizing={handleUpdateDragLine}
-                  onActionMoveEnd={handleDisposeDragLine}
-                  onActionResizeEnd={handleDisposeDragLine}
-                  onScroll={(params) => {
-                    onScroll(params);
-                    onScrollVertical && onScrollVertical(params);
-                  }}
-                />
-              ) : null}
-              {areaCount > 1 ? (
-                <div id="time-editor-container" ref={containerRef} style={{ height: '100%' }} onClick={onClickTimeline}>
-                  {Object.keys(groupedData).map((key, index) => {
-                    const handleGroupDataChange = (updatedData: TimelineRow[]) => {
-                      const mergedData = editorData.filter((item) => String(item.type) !== key).concat(updatedData);
-                      const sortedMergedData = [...mergedData].sort((a, b) => {
-                        const indexA = keys.indexOf(String(a.type));
-                        const indexB = keys.indexOf(String(b.type));
-                        return indexA - indexB;
-                      });
-                      const result = onChange?.(sortedMergedData);
-                      if (result !== false) {
-                        setEditorData(sortedMergedData);
-                        engineRef.current.data = sortedMergedData;
-                        autoReRender && engineRef.current.reRender();
-                      }
-                    };
-
-                    const tEditorData = groupedData[Object.keys(groupedData)[0]];
-                    const _totalHeight = tEditorData.reduce((prev, cur) => prev + (cur.rowHeight || tEditorData[0]?.rowHeight), 0) + ((className || '').indexOf('1') > -1 ? 12 : 32);
-
-                    return (
-                      <EditArea
-                        key={key}
-                        isMulti={areaCount > 1}
-                        {...checkedProps}
-                        className={index !== 0 ? `no-flex ${key} ${index} overflow-hidden` : `overflow-hidden ${key} ${index}`}
-                        timelineWidth={width}
-                        ref={(ref) => ((areaRef.current as any) = ref?.domRef.current)}
-                        disableDrag={disableDrag || isPlaying}
-                        editorData={groupedData[key]}
-                        cursorTime={cursorTime}
-                        scaleCount={scaleCount}
-                        setScaleCount={handleSetScaleCount}
-                        scrollTop={scrollTop}
-                        scrollLeft={scrollLeft}
-                        setEditorData={handleGroupDataChange}
-                        setCursor={handleSetCursor}
-                        deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
-                        allowCreateTrack={allowCreateTrack}
-                        minHeight={index === 0 ? 122 : _totalHeight}
-                        containerRef={containerRef}
-                        onMutiSelectChange={props?.onMutiSelectChange}
-                        engineRef={engineRef}
-                        onActionMoveStart={handleInitDragLine}
-                        onActionResizeStart={handleInitDragLine}
-                        onActionMoving={handleUpdateDragLine}
-                        onActionResizing={handleUpdateDragLine}
-                        onActionMoveEnd={handleDisposeDragLine}
-                        onActionResizeEnd={handleDisposeDragLine}
-                        onScroll={onScroll}
-                      />
-                    );
-                  })}
-                </div>
-              ) : null}
-
-              {!hideCursor && (
-                <Cursor
-                  {...checkedProps}
-                  ref={cursorRef}
-                  timelineWidth={width}
-                  disableDrag={isPlaying}
-                  scrollLeft={scrollLeft}
-                  scaleCount={scaleCount}
-                  setScaleCount={handleSetScaleCount}
                   setCursor={handleSetCursor}
                   cursorTime={cursorTime}
                   editorData={editorData}
-                  areaRef={areaRef}
-                  scrollSync={scrollSync}
-                  deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
+                  scaleCount={scaleCount}
+                  setScaleCount={handleSetScaleCount}
+                  onScroll={onScroll}
+                  scrollLeft={scrollLeft}
+                  cursorRef={cursorRef}
                 />
-              )}
-              <DragLineController
-                ref={dragLineControllerRef}
-                dragLine={dragLine}
-                editorData={editorData}
-                cursorTime={cursorTime}
-                scale={scale}
-                scaleWidth={scaleWidth}
-                startLeft={startLeft}
-                hideCursor={hideCursor}
-                scrollLeft={scrollLeft}
-                getAssistDragLineActionIds={checkedProps.getAssistDragLineActionIds}
-              />
-            </>
-          )}
+
+                {areaCount === 1 ? (
+                  <EditArea
+                    {...checkedProps}
+                    timelineWidth={width}
+                    ref={(ref) => ((areaRef.current as any) = ref?.domRef.current)}
+                    disableDrag={disableDrag || isPlaying}
+                    editorData={editorData}
+                    cursorTime={cursorTime}
+                    scaleCount={scaleCount}
+                    setScaleCount={handleSetScaleCount}
+                    scrollTop={scrollTop}
+                    scrollLeft={scrollLeft}
+                    engineRef={engineRef}
+                    setEditorData={handleEditorDataChange}
+                    setCursor={handleSetCursor}
+                    deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
+                    allowCreateTrack={allowCreateTrack}
+                    onMutiSelectChange={props?.onMutiSelectChange}
+                    onActionMoveStart={handleInitDragLine}
+                    onActionResizeStart={handleInitDragLine}
+                    onActionMoving={handleUpdateDragLine}
+                    onActionResizing={handleUpdateDragLine}
+                    onActionMoveEnd={handleDisposeDragLine}
+                    onActionResizeEnd={handleDisposeDragLine}
+                    onScroll={(params) => {
+                      onScroll(params);
+                      onScrollVertical && onScrollVertical(params);
+                    }}
+                  />
+                ) : null}
+                {areaCount > 1 ? (
+                  <div id="time-editor-container" ref={containerRef} style={{ height: '100%' }} onClick={onClickTimeline}>
+                    {Object.keys(groupedData).map((key, index) => {
+                      const handleGroupDataChange = (updatedData: TimelineRow[]) => {
+                        const mergedData = editorData.filter((item) => String(item.type) !== key).concat(updatedData);
+                        const sortedMergedData = [...mergedData].sort((a, b) => {
+                          const indexA = keys.indexOf(String(a.type));
+                          const indexB = keys.indexOf(String(b.type));
+                          return indexA - indexB;
+                        });
+                        const result = onChange?.(sortedMergedData);
+                        if (result !== false) {
+                          setEditorData(sortedMergedData);
+                          engineRef.current.data = sortedMergedData;
+                          autoReRender && engineRef.current.reRender();
+                        }
+                      };
+
+                      const tEditorData = groupedData[Object.keys(groupedData)[0]];
+                      const _totalHeight = tEditorData.reduce((prev, cur) => prev + (cur.rowHeight || tEditorData[0]?.rowHeight), 0) + ((className || '').indexOf('1') > -1 ? 12 : 32);
+
+                      return (
+                        <EditArea
+                          key={key}
+                          isMulti={areaCount > 1}
+                          {...checkedProps}
+                          className={index !== 0 ? `no-flex ${key} ${index} overflow-hidden` : `overflow-hidden ${key} ${index}`}
+                          timelineWidth={width}
+                          ref={(ref) => ((areaRef.current as any) = ref?.domRef.current)}
+                          disableDrag={disableDrag || isPlaying}
+                          editorData={groupedData[key]}
+                          cursorTime={cursorTime}
+                          scaleCount={scaleCount}
+                          setScaleCount={handleSetScaleCount}
+                          scrollTop={scrollTop}
+                          scrollLeft={scrollLeft}
+                          setEditorData={handleGroupDataChange}
+                          setCursor={handleSetCursor}
+                          deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
+                          allowCreateTrack={allowCreateTrack}
+                          minHeight={index === 0 ? 122 : _totalHeight}
+                          containerRef={containerRef}
+                          onMutiSelectChange={props?.onMutiSelectChange}
+                          engineRef={engineRef}
+                          onActionMoveStart={handleInitDragLine}
+                          onActionResizeStart={handleInitDragLine}
+                          onActionMoving={handleUpdateDragLine}
+                          onActionResizing={handleUpdateDragLine}
+                          onActionMoveEnd={handleDisposeDragLine}
+                          onActionResizeEnd={handleDisposeDragLine}
+                          onScroll={onScroll}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : null}
+
+                {!hideCursor && (
+                  <Cursor
+                    {...checkedProps}
+                    ref={cursorRef}
+                    timelineWidth={width}
+                    disableDrag={isPlaying}
+                    scrollLeft={scrollLeft}
+                    scaleCount={scaleCount}
+                    setScaleCount={handleSetScaleCount}
+                    setCursor={handleSetCursor}
+                    cursorTime={cursorTime}
+                    editorData={editorData}
+                    areaRef={areaRef}
+                    scrollSync={scrollSync}
+                    deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
+                  />
+                )}
+                <DragLineController
+                  ref={dragLineControllerRef}
+                  dragLine={dragLine}
+                  editorData={editorData}
+                  cursorTime={cursorTime}
+                  scale={scale}
+                  scaleWidth={scaleWidth}
+                  startLeft={startLeft}
+                  hideCursor={hideCursor}
+                  scrollLeft={scrollLeft}
+                  getAssistDragLineActionIds={checkedProps.getAssistDragLineActionIds}
+                />
+              </>
+            );
+          }}
         </ScrollSync>
       </div>
     );
