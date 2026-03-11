@@ -2,7 +2,7 @@ import { DraggableOptions } from "@interactjs/actions/drag/plugin";
 import { ResizableOptions } from "@interactjs/actions/resize/plugin";
 import { DragEvent, Interactable } from "@interactjs/types";
 import interact from "interactjs";
-import { cloneElement, FC, ReactElement, useEffect, useRef } from "react";
+import { cloneElement, FC, ReactElement, useEffect, useRef, ReactNode } from "react";
 
 export const InteractComp: FC<{
   interactRef?: React.MutableRefObject<Interactable>;
@@ -10,6 +10,7 @@ export const InteractComp: FC<{
   draggableOptions: DraggableOptions;
   resizable: boolean;
   resizableOptions: ResizableOptions;
+  children: ReactNode;
 }> = ({ children, interactRef, draggable, resizable, draggableOptions, resizableOptions }) => {
   const nodeRef = useRef<HTMLElement>();
   const interactable = useRef<Interactable>();

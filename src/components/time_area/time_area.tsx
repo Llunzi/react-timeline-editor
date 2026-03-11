@@ -23,6 +23,8 @@ export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCurs
   /** 是否显示细分刻度 */
   const showUnit = scaleSplitCount > 0;
 
+  console.log('TimeArea scrollLeft = ', scrollLeft);
+
   const clientWidth = document.documentElement.clientWidth;
 
   /** 获取每个 cell 渲染内容 */

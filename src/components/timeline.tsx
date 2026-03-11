@@ -225,6 +225,13 @@ export const Timeline = React.memo(
       setScrollLeft: (val) => {
         scrollSync.current && scrollSync.current.setState({ scrollLeft: Math.max(val, 0) });
       },
+      setScrollLeftFromTime: (val) => {
+        const containerEl = document.querySelector('.timeline-editor');
+        if (!containerEl) return;
+        const left = startLeft + scaleWidth / scale * val;
+        containerEl.scrollLeft = Math.max(left, 0);
+        scrollSync.current && scrollSync.current.setState({ scrollLeft: Math.max(left, 0) });
+      },
       setScrollTop: (val) => {
         scrollSync.current && scrollSync.current.setState({ scrollTop: Math.max(val, 0) });
       },
@@ -383,7 +390,7 @@ export const Timeline = React.memo(
                         setCursor={handleSetCursor}
                         deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
                         allowCreateTrack={allowCreateTrack}
-                        minHeight={index === 0 ? undefined : _totalHeight}
+                        minHeight={index === 0 ? 122 : _totalHeight}
                         containerRef={containerRef}
                         onMutiSelectChange={props?.onMutiSelectChange}
                         engineRef={engineRef}

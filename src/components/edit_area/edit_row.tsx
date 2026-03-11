@@ -1,4 +1,4 @@
-import React, { FC, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { FC, useState, useEffect, useMemo, useCallback, useTransition } from 'react';
 import { TimelineRow } from '../../interface/action';
 import { CommonProp } from '../../interface/common_prop';
 import { prefix } from '../../utils/deal_class_prefix';
@@ -51,6 +51,7 @@ export const EditRow: FC<EditRowProps> = (props) => {
   } = props;
 
   const [visibleCount, setVisibleCount] = useState(20);
+  const [isPending, startTransition] = useTransition();
 
   const classNames = ['edit-row'];
   if (rowData?.selected) classNames.push('selected');
@@ -71,10 +72,9 @@ export const EditRow: FC<EditRowProps> = (props) => {
 
   useEffect(() => {
     if (visibleCount < visibleActions.length) {
-      const timer = requestAnimationFrame(() => {
+      startTransition(() => {
         setVisibleCount((prev) => Math.min(prev + 20, visibleActions.length));
       });
-      return () => cancelAnimationFrame(timer);
     }
   }, [visibleCount, visibleActions.length]);
 

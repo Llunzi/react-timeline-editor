@@ -70,7 +70,7 @@ export const Cursor = React.forwardRef<CursorApi, CursorProps>((props, ref) => {
     },
   );
 
-  const clientHeight = document.querySelector('#time-editor-container')?.clientHeight || 0;
+  const clientHeight = document.querySelector('#time-editor-container')?.scrollHeight || 0;
 
   return (
     <RowDnd

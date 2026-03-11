@@ -4,11 +4,11 @@ import { TimelineAction, TimelineRow } from '../../interface/action';
 import { CommonProp } from '../../interface/common_prop';
 import { EditData } from '../../interface/timeline';
 import { prefix } from '../../utils/deal_class_prefix';
-import { parserTimeToPixel, parserPixelToTime } from '../../utils/deal_data';
+import { parserPixelToTime } from '../../utils/deal_data';
 import './edit_area.less';
 import { EditRow } from './edit_row';
 import { useRowSelection } from './hooks/use_row_selection';
-import { Upload, type UploadProps } from 'antd/es';
+import { type UploadProps } from 'antd/es';
 import { message } from 'antd/es';
 import { Howl } from 'howler';
 import { useRowDrag } from './hooks/use_row_drag';
@@ -491,7 +491,8 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
 
   let _totalHeight: number | string = editorData.reduce((prev, cur) => prev + (cur.rowHeight || rowHeight), 0) + ((className || '').indexOf('1') > -1 ? 12 : 32);
   if (minHeight) {
-    _totalHeight = `calc(100% - ${minHeight + 16}px)`;
+    const calcHeight = `calc(100% - ${minHeight + 16}px)`;
+    _totalHeight = `max(${_totalHeight}px, ${calcHeight})`;
   }
 
   return (
