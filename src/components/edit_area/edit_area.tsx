@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AutoSizer, Grid, GridCellRenderer, OnScrollParams } from 'react-virtualized';
 import { TimelineAction, TimelineRow } from '../../interface/action';
 import { CommonProp } from '../../interface/common_prop';
 import { EditData } from '../../interface/timeline';
 import { prefix } from '../../utils/deal_class_prefix';
-import { parserPixelToTime } from '../../utils/deal_data';
+import { parserPixelToTime, parserTimeToTransform } from '../../utils/deal_data';
 import './edit_area.less';
 import { EditRow } from './edit_row';
 import { useRowSelection } from './hooks/use_row_selection';
@@ -196,8 +196,27 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
   const [currentMouseTime, setCurrentMouseTime] = useState<number>(0);
   const heightRef = useRef(-1);
   const uploadRef = useRef<any>();
-  const [dropPreview, setDropPreview] = useState<{ position: 'before' | 'after'; rowIndex: number } | null>(null);
   const [dragIndicator, setDragIndicator] = useState<{ targetIndex: number; rowsMoved: number } | null>(null);
+  const [insertPreview, setInsertPreview] = useState<{
+    actionId: string;
+    rowId: string;
+    start: number;
+    end: number;
+    shiftByActionId: Record<string, number>;
+  } | null>(null);
+  const [trackPreview, setTrackPreview] = useState<
+    | {
+        kind: 'row';
+        rowId: string;
+      }
+    | {
+        kind: 'new-row';
+        insertIndex: number;
+        sourceRow: TimelineRow;
+      }
+    | null
+  >(null);
+
 
   // 框选功能
   const handleSelectionChange = useCallback(
@@ -347,16 +366,21 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
 
       const onSuccess = handleUploadChange(row);
       onSuccess({ file: file[0], isUploading: true });
-      customRequest?.({
-        file: file[0],
-        onSuccess,
-        method: 'POST',
-        action: 'bgm',
-        onError: (err) => {
-          onSuccess({ file: file[0], isUploading: false });
-          console.error('Upload error:', err);
+      customRequest?.(
+        {
+          file: file[0],
+          onSuccess,
+          method: 'POST',
+          action: 'bgm',
+          onError: (err) => {
+            onSuccess({ file: file[0], isUploading: false });
+            console.error('Upload error:', err);
+          },
         },
-      });
+        {
+          defaultRequest: () => undefined,
+        },
+      );
     },
     [onBeforeUpload, handleUploadChange, customRequest],
   );
@@ -381,7 +405,10 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         rowHeight={row?.rowHeight || rowHeight}
         rowData={row}
         allowCreateTrack={allowCreateTrack}
-        setDropPreview={setDropPreview}
+        insertPreview={insertPreview}
+        setInsertPreview={setInsertPreview}
+        trackPreview={trackPreview}
+        setTrackPreview={setTrackPreview}
         containerRef={containerRef}
         selectedActionIds={selectedActionIds}
         setCursor={setCursor}
@@ -495,6 +522,31 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     _totalHeight = `max(${_totalHeight}px, ${calcHeight})`;
   }
 
+  const getPreviewRowTop = (targetRowId: string) => {
+    const targetIndex = editorData.findIndex((item) => item.id === targetRowId);
+    if (targetIndex < 0) return null;
+
+    let top = 0;
+    for (let i = 0; i < targetIndex; i++) {
+      top += (editorData[i].rowHeight || rowHeight) + 2;
+    }
+
+    return {
+      top,
+      height: editorData[targetIndex].rowHeight || rowHeight,
+    };
+  };
+
+  /** 为 new-row 预览计算纯像素位置，不修改 editorData */
+  const getNewRowPreviewPosition = (insertIndex: number, sourceRowHeight: number) => {
+    let top = 0;
+    const clampedIndex = Math.min(insertIndex, editorData.length);
+    for (let i = 0; i < clampedIndex; i++) {
+      top += (editorData[i].rowHeight || rowHeight) + 2;
+    }
+    return { top, height: sourceRowHeight || rowHeight };
+  };
+
   return (
     <div
       ref={editAreaRef}
@@ -549,6 +601,84 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         }}
       </AutoSizer>
       <DragSelection />
+      {trackPreview &&
+        (() => {
+          if (trackPreview.kind === 'new-row') {
+            // 新增轨道：在插入点位置渲染一条发光横线
+            const insertIndex = trackPreview.insertIndex;
+            const srcHeight = trackPreview.sourceRow.rowHeight || rowHeight;
+            let lineTop: number;
+            if (insertIndex === 0) {
+              // 插入第一行之前：线在顶部
+              lineTop = 16 - scrollTop;
+            } else {
+              const pos = getNewRowPreviewPosition(insertIndex, srcHeight);
+              lineTop = pos.top - scrollTop + 16;
+            }
+            return (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 8,
+                  right: 8,
+                  top: lineTop - 1,
+                  height: 3,
+                  background: 'rgba(24, 144, 255, 0.9)',
+                  borderRadius: 2,
+                  zIndex: 1002,
+                  pointerEvents: 'none',
+                  boxShadow: '0 0 0 1px rgba(24, 144, 255, 0.25), 0 0 8px rgba(24, 144, 255, 0.55)',
+                }}
+              />
+            );
+          }
+
+          // 跨轨到现有行：细边框高亮，不填充
+          const previewRow = getPreviewRowTop(trackPreview.rowId);
+          if (!previewRow) return null;
+          return (
+            <div
+              style={{
+                position: 'absolute',
+                left: 2,
+                right: 2,
+                top: previewRow.top - scrollTop + 16,
+                height: previewRow.height,
+                background: 'rgba(24, 144, 255, 0.04)',
+                border: '1.5px solid rgba(24, 144, 255, 0.55)',
+                borderRadius: 6,
+                zIndex: 999,
+                pointerEvents: 'none',
+              }}
+            />
+          );
+        })()}
+      {insertPreview &&
+        (() => {
+          const previewRow = getPreviewRowTop(insertPreview.rowId);
+          if (!previewRow) return null;
+          const transform = parserTimeToTransform(
+            { start: insertPreview.start, end: insertPreview.end },
+            { startLeft, scale, scaleWidth },
+          );
+
+          return (
+            <div
+              style={{
+                position: 'absolute',
+                left: transform.left,
+                width: transform.width,
+                top: previewRow.top - scrollTop + 18,
+                height: Math.max(previewRow.height - 4, 8),
+                background: 'rgba(24, 144, 255, 0.12)',
+                border: '1.5px dashed rgba(24, 144, 255, 0.75)',
+                borderRadius: 6,
+                zIndex: 1001,
+                pointerEvents: 'none',
+              }}
+            />
+          );
+        })()}
       {dragIndicator &&
         (() => {
           // 计算拖拽位置指示器的位置
@@ -572,36 +702,6 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
                 zIndex: 1001,
                 pointerEvents: 'none',
                 transition: 'top 0.05s ease-out',
-              }}
-            />
-          );
-        })()}
-      {dropPreview &&
-        (() => {
-          // 计算预览指示器的位置
-          let top = 0;
-          for (let i = 0; i < editorData.length; i++) {
-            if (dropPreview.position === 'before' && i === dropPreview.rowIndex) {
-              break;
-            }
-            top += editorData[i].rowHeight || rowHeight;
-            if (dropPreview.position === 'after' && i === dropPreview.rowIndex) {
-              break;
-            }
-          }
-
-          return (
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                top: top - scrollTop + 16,
-                height: '2px',
-                backgroundColor: 'transparent',
-                borderTop: '2px dashed #1890ff',
-                zIndex: 1000,
-                pointerEvents: 'none',
               }}
             />
           );

@@ -2,7 +2,7 @@ import React, { FC, useState, useEffect, useMemo, useCallback, useTransition } f
 import { TimelineRow } from '../../interface/action';
 import { CommonProp } from '../../interface/common_prop';
 import { prefix } from '../../utils/deal_class_prefix';
-import { parserPixelToTime } from '../../utils/deal_data';
+import { parserPixelToTime, parserTimeToTransform } from '../../utils/deal_data';
 import { DragLineData } from './drag_lines';
 import { EditAction } from './edit_action';
 import './edit_row.less';
@@ -12,6 +12,13 @@ export type EditRowProps = CommonProp & {
   rowData?: TimelineRow;
   style?: React.CSSProperties;
   dragLineData?: DragLineData;
+  insertPreview?: {
+    actionId: string;
+    rowId: string;
+    start: number;
+    end: number;
+    shiftByActionId: Record<string, number>;
+  } | null;
   setEditorData: (params: TimelineRow[]) => void;
   /** 距离左侧滚动距离 */
   scrollLeft: number;
@@ -19,8 +26,39 @@ export type EditRowProps = CommonProp & {
   deltaScrollLeft: (scrollLeft: number) => void;
   /** 允许拖拽创建新轨道 */
   allowCreateTrack?: boolean;
-  /** 设置预览指示器位置 */
-  setDropPreview?: (preview: { position: 'before' | 'after'; rowIndex: number } | null) => void;
+  setInsertPreview?: (
+    preview: {
+      actionId: string;
+      rowId: string;
+      start: number;
+      end: number;
+      shiftByActionId: Record<string, number>;
+    } | null,
+  ) => void;
+  trackPreview?:
+    | {
+        kind: 'row';
+        rowId: string;
+      }
+    | {
+        kind: 'new-row';
+        insertIndex: number;
+        sourceRow: TimelineRow;
+      }
+    | null;
+  setTrackPreview?: (
+    preview:
+      | {
+          kind: 'row';
+          rowId: string;
+        }
+      | {
+          kind: 'new-row';
+          insertIndex: number;
+          sourceRow: TimelineRow;
+        }
+      | null,
+  ) => void;
   /** time-editor-container 的 ref 引用 */
   containerRef?: React.MutableRefObject<HTMLDivElement>;
   /** 选中的 action IDs */
@@ -55,6 +93,9 @@ export const EditRow: FC<EditRowProps> = (props) => {
 
   const classNames = ['edit-row'];
   if (rowData?.selected) classNames.push('selected');
+  if (rowData?.isPreview) classNames.push('preview-row');
+  if (props.insertPreview?.rowId === rowData?.id) classNames.push('insert-target');
+  if (props.trackPreview?.kind === 'row' && props.trackPreview.rowId === rowData?.id) classNames.push('move-target');
 
   const clientWidth = document.documentElement.clientWidth;
   const timeStart = parserPixelToTime(scrollLeft - 400, { startLeft, scale, scaleWidth });
@@ -140,6 +181,15 @@ export const EditRow: FC<EditRowProps> = (props) => {
         }
       }}
     >
+      {props.insertPreview?.rowId === rowData?.id && (
+        <div
+          className={prefix('insert-preview')}
+          style={parserTimeToTransform(
+            { start: props.insertPreview.start, end: props.insertPreview.end },
+            { startLeft, scale, scaleWidth },
+          )}
+        />
+      )}
       {renderActions.map((action) => (
         <EditAction
           key={action.id}
@@ -148,7 +198,9 @@ export const EditRow: FC<EditRowProps> = (props) => {
           row={rowData}
           action={action}
           allowCreateTrack={allowCreateTrack}
-          setDropPreview={props.setDropPreview}
+          setInsertPreview={props.setInsertPreview}
+          trackPreview={props.trackPreview}
+          setTrackPreview={props.setTrackPreview}
           containerRef={containerRef}
           selectedActionIds={selectedActionIds}
         />

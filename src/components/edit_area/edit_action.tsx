@@ -4,7 +4,7 @@ import { TimelineAction, TimelineRow } from '../../interface/action';
 import { CommonProp } from '../../interface/common_prop';
 import { DEFAULT_ADSORPTION_DISTANCE, DEFAULT_MOVE_GRID } from '../../interface/const';
 import { prefix } from '../../utils/deal_class_prefix';
-import { getScaleCountByPixel, parserTimeToPixel, parserTimeToTransform, parserTransformToTime } from '../../utils/deal_data';
+import { getScaleCountByPixel, parserActionsToPositions, parserTimeToPixel, parserTimeToTransform, parserTransformToTime } from '../../utils/deal_data';
 import { RowDnd } from '../row_rnd/row_rnd';
 import { RndDragCallback, RndDragEndCallback, RndDragStartCallback, RndResizeCallback, RndResizeEndCallback, RndResizeStartCallback, RowRndApi } from '../row_rnd/row_rnd_interface';
 import { DragLineData } from './drag_lines';
@@ -15,6 +15,13 @@ export type EditActionProps = CommonProp & {
   row: TimelineRow;
   action: TimelineAction;
   dragLineData?: DragLineData;
+  insertPreview?: {
+    actionId: string;
+    rowId: string;
+    start: number;
+    end: number;
+    shiftByActionId: Record<string, number>;
+  } | null;
   setEditorData: (params: TimelineRow[]) => void;
   handleTime: (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => number;
   areaRef: React.MutableRefObject<HTMLDivElement>;
@@ -22,11 +29,163 @@ export type EditActionProps = CommonProp & {
   deltaScrollLeft?: (delta: number) => void;
   /** 允许拖拽创建新轨道 */
   allowCreateTrack?: boolean;
-  /** 设置预览指示器位置 */
-  setDropPreview?: (preview: { position: 'before' | 'after'; rowIndex: number } | null) => void;
+  setInsertPreview?: (
+    preview: {
+      actionId: string;
+      rowId: string;
+      start: number;
+      end: number;
+      shiftByActionId: Record<string, number>;
+    } | null,
+  ) => void;
+  trackPreview?:
+    | {
+        kind: 'row';
+        rowId: string;
+      }
+    | {
+        kind: 'new-row';
+        insertIndex: number;
+        sourceRow: TimelineRow;
+      }
+    | null;
+  setTrackPreview?: (
+    preview:
+      | {
+          kind: 'row';
+          rowId: string;
+        }
+      | {
+          kind: 'new-row';
+          insertIndex: number;
+          sourceRow: TimelineRow;
+        }
+      | null,
+  ) => void;
   /** time-editor-container的ref引用 */
   containerRef?: React.MutableRefObject<HTMLDivElement>;
   selectedActionIds?: string[];
+};
+
+const resolveTargetRowPlacement = ({
+  editorData,
+  row,
+  top,
+  rowHeight,
+  allowCreateTrack,
+}: {
+  editorData: TimelineRow[];
+  row: TimelineRow;
+  top?: number;
+  rowHeight: number;
+  allowCreateTrack: boolean;
+}) => {
+  let targetRowIndex = editorData.findIndex((item) => item.id === row.id);
+  let needCreateNewRow = false;
+  let newRowPosition: 'before' | 'after' = 'after';
+
+  if (top !== undefined) {
+    const currentRowIndex = editorData.findIndex((item) => item.id === row.id);
+    const threshold = 0.2;
+    const preciseOffset = top / rowHeight;
+    const preciseIndex = currentRowIndex + preciseOffset;
+
+    if (allowCreateTrack) {
+      if (preciseIndex < -threshold) {
+        needCreateNewRow = true;
+        newRowPosition = 'before';
+        targetRowIndex = 0;
+      } else if (preciseIndex >= editorData.length - 1 + threshold) {
+        needCreateNewRow = true;
+        newRowPosition = 'after';
+        targetRowIndex = editorData.length;
+      } else {
+        const rowOffset = Math.round(preciseOffset);
+        targetRowIndex = Math.max(0, Math.min(currentRowIndex + rowOffset, editorData.length - 1));
+      }
+    } else {
+      const rowOffset = Math.round(preciseOffset);
+      targetRowIndex = Math.max(0, Math.min(currentRowIndex + rowOffset, editorData.length - 1));
+    }
+  }
+
+  return { targetRowIndex, needCreateNewRow, newRowPosition };
+};
+
+const buildInsertPreview = ({
+  targetRow,
+  actionId,
+  start,
+  end,
+}: {
+  targetRow: TimelineRow;
+  actionId: string;
+  start: number;
+  end: number;
+}) => {
+  const duration = Math.max(end - start, 0);
+  const insertStart = Math.max(0, start);
+  const shiftByActionId: Record<string, number> = {};
+  let rippleCursor = insertStart + duration;
+
+  const sortedActions = targetRow.actions
+    .filter((item) => item.id !== actionId)
+    .sort((a, b) => a.start - b.start);
+
+  for (const item of sortedActions) {
+    if (item.end <= insertStart) continue;
+    if (item.start >= rippleCursor) break;
+
+    shiftByActionId[item.id] = rippleCursor - item.start;
+    rippleCursor += item.end - item.start;
+  }
+
+  return {
+    actionId,
+    rowId: targetRow.id,
+    start: insertStart,
+    end: insertStart + duration,
+    shiftByActionId,
+  };
+};
+
+const clearRipplePreview = (container?: HTMLDivElement | null) => {
+  if (!container) return;
+
+  const previewNodes = container.querySelectorAll<HTMLElement>('[data-ripple-preview="true"]');
+  previewNodes.forEach((node) => {
+    node.style.transform = '';
+    node.style.transition = '';
+    node.style.zIndex = '';
+    node.removeAttribute('data-ripple-preview');
+  });
+};
+
+const applyRipplePreview = ({
+  container,
+  shiftByActionId,
+  scale,
+  scaleWidth,
+}: {
+  container?: HTMLDivElement | null;
+  shiftByActionId: Record<string, number>;
+  scale: number;
+  scaleWidth: number;
+}) => {
+  if (!container) return;
+
+  clearRipplePreview(container);
+
+  Object.entries(shiftByActionId).forEach(([actionId, shift]) => {
+    const node = container.querySelector<HTMLElement>(`[data-action-id="${actionId}"]`);
+    if (!node) return;
+
+    const shiftPx = (shift / scale) * scaleWidth;
+    node.style.transform = `translateX(${shiftPx}px)`;
+    node.style.transition = 'transform 90ms ease-out';
+    node.style.zIndex = '6';
+    node.setAttribute('data-ripple-preview', 'true');
+  });
 };
 
 const EditActionO: FC<EditActionProps> = ({
@@ -63,7 +222,10 @@ const EditActionO: FC<EditActionProps> = ({
   areaRef,
   deltaScrollLeft,
   allowCreateTrack = true,
-  setDropPreview,
+  insertPreview,
+  setInsertPreview,
+  trackPreview,
+  setTrackPreview,
   containerRef,
   selectedActionIds,
 }) => {
@@ -119,6 +281,16 @@ const EditActionO: FC<EditActionProps> = ({
     setTransform({ ...parserTimeToTransform({ start, end }, { startLeft, scale, scaleWidth }), top: 0 });
   }, [end, start, startLeft, scaleWidth, scale]);
 
+  const adsorptionPositions = React.useMemo(() => {
+    const otherActions = editorData.flatMap((rowItem) => rowItem.actions).filter((item) => item.id !== action.id);
+
+    return parserActionsToPositions(otherActions, {
+      startLeft,
+      scale,
+      scaleWidth,
+    });
+  }, [action.id, editorData, scale, scaleWidth, startLeft]);
+
   // 配置拖拽网格对其属性
   const gridSize = scaleWidth / scaleSplitCount;
 
@@ -143,50 +315,76 @@ const EditActionO: FC<EditActionProps> = ({
   const handleDragStart: RndDragStartCallback = () => {
     // 保存原始位置
     setDragging(true);
+    clearRipplePreview(areaRef.current);
     originalPosition.current = { start: action.start, end: action.end };
     onActionMoveStart && onActionMoveStart({ action, row });
   };
   const handleDrag: RndDragCallback = ({ left, width, top, ...args }) => {
     isDragWhenClick.current = true;
 
-    // 检查是否需要显示预览指示器
-    if (allowCreateTrack && setDropPreview && top !== undefined) {
-      const currentRowIndex = editorData.findIndex((item) => item.id === row.id);
-      const rowHeightValue = rowHeight || 32;
+    const currentRange = parserTransformToTime({ left, width }, { scaleWidth, scale, startLeft });
+    const placement = resolveTargetRowPlacement({
+      editorData,
+      row,
+      top,
+      rowHeight,
+      allowCreateTrack,
+    });
 
-      // 添加阈值，避免边界处频繁切换
-      const threshold = 0.2; // 降低阈值，使预览指示器更灵敏
-      const preciseOffset = top / rowHeightValue;
-      const preciseIndex = currentRowIndex + preciseOffset;
+    const currentRowIndex = editorData.findIndex((item) => item.id === row.id);
+    const isSameRow = placement.targetRowIndex === currentRowIndex && !placement.needCreateNewRow;
 
-      // 判断是否需要显示预览指示器
-      if (preciseIndex < -threshold) {
-        // 拖拽到顶部之前
-        setDropPreview({ position: 'before', rowIndex: 0 });
-      } else if (preciseIndex >= editorData.length - 1 + threshold) {
-        // 拖拽到底部之后
-        setDropPreview({ position: 'after', rowIndex: editorData.length - 1 });
+    if (placement.needCreateNewRow) {
+      // 拖到轨道外，需要新建行：只显示插入线
+      setInsertPreview?.(null);
+      setTrackPreview?.({
+        kind: 'new-row',
+        insertIndex: placement.targetRowIndex,
+        sourceRow: row,
+      });
+    } else {
+      // 同轨或跨轨到现有行：显示幽灵落点矩形
+      const targetRow = editorData[placement.targetRowIndex];
+      if (targetRow) {
+        setInsertPreview?.({
+          actionId: action.id,
+          rowId: targetRow.id,
+          start: currentRange.start,
+          end: currentRange.end,
+          shiftByActionId: {},
+        });
+        // 跨轨额外高亮目标行边框
+        setTrackPreview?.(isSameRow ? null : { kind: 'row', rowId: targetRow.id });
       } else {
-        // 在现有轨道范围内，不显示预览
-        setDropPreview(null);
+        setInsertPreview?.(null);
+        setTrackPreview?.(null);
       }
     }
 
     if (onActionMoving) {
-      const { start, end } = parserTransformToTime({ left, width }, { scaleWidth, scale, startLeft });
       const g1 = parserTimeToPixel(originStart, {
         startLeft,
         scale,
         scaleWidth,
       });
 
-      const g2 = parserTimeToPixel(start, {
+      const currentStartPixel = parserTimeToPixel(currentRange.start, {
         startLeft,
         scale,
         scaleWidth,
       });
 
-      const result = onActionMoving({ action, row, start, end, left, width, top, offsetX: g2 - g1, ...args });
+      const result = onActionMoving({
+        action,
+        row,
+        start: currentRange.start,
+        end: currentRange.end,
+        left,
+        width,
+        top,
+        offsetX: currentStartPixel - g1,
+        ...args,
+      });
 
       if (result === false) return false;
     }
@@ -200,54 +398,22 @@ const EditActionO: FC<EditActionProps> = ({
     ({ left, width, top, height, isMultiDrag, fn: fnCallback }) => {
       console.log('handleDragEnd: ', left, width, top, height);
       setDragging(false);
-      // 清理预览指示器
-      if (setDropPreview) {
-        setDropPreview(null);
-      }
+      setInsertPreview?.(null);
+      setTrackPreview?.(null);
+      clearRipplePreview(areaRef.current);
 
       // 计算时间
       let { start, end } = parserTransformToTime({ left, width }, { scaleWidth, scale, startLeft });
 
       console.log('handleDragEnd start, end : ', start, end);
 
-      // 检测目标row
-      let targetRowIndex = editorData.findIndex((item) => item.id === row.id);
-      let needCreateNewRow = false;
-      let newRowPosition: 'before' | 'after' = 'after';
-
-      if (top !== undefined && height !== undefined) {
-        // 通过Y轴位置计算目标row的索引
-        const currentRowIndex = editorData.findIndex((item) => item.id === row.id);
-        const rowHeightValue = rowHeight || 32; // 使用默认行高或传入的行高
-
-        // 使用与预览指示器相同的阈值逻辑
-        const threshold = 0.2;
-        const preciseOffset = top / rowHeightValue;
-        const preciseIndex = currentRowIndex + preciseOffset;
-
-        // 检查是否需要创建新轨道
-        if (allowCreateTrack) {
-          if (preciseIndex < -threshold) {
-            // 拖拽到第一个轨道之前，需要在前面创建新轨道
-            needCreateNewRow = true;
-            newRowPosition = 'before';
-            targetRowIndex = 0;
-          } else if (preciseIndex >= editorData.length - 1 + threshold) {
-            // 拖拽到最后一个轨道之后，需要在后面创建新轨道
-            needCreateNewRow = true;
-            newRowPosition = 'after';
-            targetRowIndex = editorData.length;
-          } else {
-            // 在现有轨道范围内，使用四舍五入找到最近的轨道
-            const rowOffset = Math.round(preciseOffset);
-            targetRowIndex = Math.max(0, Math.min(currentRowIndex + rowOffset, editorData.length - 1));
-          }
-        } else {
-          // 不允许创建新轨道时，限制在现有轨道范围内
-          const rowOffset = Math.round(preciseOffset);
-          targetRowIndex = Math.max(0, Math.min(currentRowIndex + rowOffset, editorData.length - 1));
-        }
-      }
+      let { targetRowIndex, needCreateNewRow, newRowPosition } = resolveTargetRowPlacement({
+        editorData,
+        row,
+        top,
+        rowHeight,
+        allowCreateTrack,
+      });
 
       // 设置数据
       const sourceRowItem = editorData.find((item) => item.id === row.id);
@@ -300,134 +466,13 @@ const EditActionO: FC<EditActionProps> = ({
       }
 
       const actionItem = sourceRowItem.actions.find((item) => item.id === id);
+      const adjustmentResult = buildInsertPreview({
+        targetRow: targetRowItem,
+        actionId: id,
+        start,
+        end,
+      });
 
-      // 碰撞检测函数 - 适用于同一row和跨row
-      const checkAndAdjustCollision = () => {
-        // 获取目标row中除了当前action之外的所有actions
-        const otherActions = targetRowItem.actions.filter((act) => act.id !== id);
-
-        console.log('=== Collision Detection ===');
-        console.log('Current action:', id, 'position:', start, '-', end);
-        console.log(
-          'Other actions in target row:',
-          otherActions.map((a) => `${a.id}(${a.start}-${a.end})`),
-        );
-
-        // 如果没有其他actions,直接使用原时间
-        if (otherActions.length === 0) {
-          console.log('No other actions, using original position');
-          return { start, end, found: true };
-        }
-
-        // 检查是否有碰撞 - 使用更严格的重叠检测
-        const collisions = otherActions.filter((existingAction) => {
-          const hasOverlap = !(end <= existingAction.start || start >= existingAction.end);
-          if (hasOverlap) {
-            console.log('Collision detected with:', existingAction.id, `(${existingAction.start}-${existingAction.end})`);
-          }
-          return hasOverlap;
-        });
-
-        const hasCollision = collisions.length > 0;
-        console.log('Has collision:', hasCollision);
-
-        if (hasCollision) {
-          // 如果有碰撞,尝试找到最近的可用位置
-          const sortedActions = [...otherActions].sort((a, b) => a.start - b.start);
-          const duration = end - start;
-          let foundPosition = false;
-          let minDistance = Number.MAX_SAFE_INTEGER;
-          let bestPosition = { start, end };
-
-          console.log('Sorted actions:', sortedActions.map((a) => `${a.id}(${a.start}-${a.end})`).join(', '));
-          console.log('Duration:', duration);
-
-          // 检查第一个action之前的空间
-          if (start < sortedActions[0].start) {
-            if (end <= sortedActions[0].start) {
-              // 当前位置可用,直接使用
-              console.log('Position before first action is available');
-              return { start, end, found: true };
-            } else {
-              // 需要调整到第一个action之前
-              const candidateEnd = sortedActions[0].start;
-              const candidateStart = candidateEnd - duration;
-              const distance = Math.abs(candidateStart - start);
-              console.log('Candidate before first action:', candidateStart, '-', candidateEnd, 'distance:', distance);
-
-              if (candidateStart < 0) {
-                return { start, end, found: false };
-              }
-              // 检查候选位置的 start 是否小于 0
-              if (candidateStart >= 0 && distance < minDistance) {
-                minDistance = distance;
-                bestPosition = { start: candidateStart, end: candidateEnd };
-                foundPosition = true;
-              }
-            }
-          }
-
-          // 检查每个action之间的间隙
-          for (let i = 0; i < sortedActions.length; i++) {
-            const currentAction = sortedActions[i];
-            const nextAction = sortedActions[i + 1];
-
-            if (nextAction) {
-              const gapStart = currentAction.end;
-              const gapEnd = nextAction.start;
-              const gapSize = gapEnd - gapStart;
-
-              if (gapSize >= duration) {
-                // 间隙足够大,考虑这个位置
-                const candidateStart = gapStart;
-                const candidateEnd = candidateStart + duration;
-                const distance = Math.abs(candidateStart - start);
-                console.log(`Gap between ${currentAction.id} and ${nextAction.id}:`, gapStart, '-', gapEnd, 'size:', gapSize, 'candidate:', candidateStart, '-', candidateEnd, 'distance:', distance);
-                if (distance < minDistance) {
-                  minDistance = distance;
-                  bestPosition = { start: candidateStart, end: candidateEnd };
-                  foundPosition = true;
-                }
-              }
-            } else {
-              // 最后一个action之后
-              const candidateStart = Math.max(start, currentAction.end);
-              const candidateEnd = candidateStart + duration;
-              const distance = Math.abs(candidateStart - start);
-              console.log('Candidate after last action:', candidateStart, '-', candidateEnd, 'distance:', distance);
-              if (distance < minDistance) {
-                minDistance = distance;
-                bestPosition = { start: candidateStart, end: candidateEnd };
-                foundPosition = true;
-              }
-            }
-          }
-
-          console.log('Best position found:', foundPosition, bestPosition);
-          if (foundPosition) {
-            return { start: bestPosition.start, end: bestPosition.end, found: true };
-          } else {
-            return { start, end, found: false };
-          }
-        }
-
-        console.log('No collision, using original position');
-        return { start, end, found: true };
-      };
-
-      // 执行碰撞检测和调整
-      const adjustmentResult = checkAndAdjustCollision();
-
-      if (!adjustmentResult.found) {
-        // 如果找不到合适位置,回到原始位置
-        console.warn('Cannot find suitable position, reverting to original position');
-        // 恢复原始位置的transform
-        const originalTransform = parserTimeToTransform(originalPosition.current, { startLeft, scale, scaleWidth });
-        setTransform({ ...originalTransform, top: 0 });
-        return;
-      }
-
-      // 使用调整后的时间
       start = adjustmentResult.start;
       end = adjustmentResult.end;
 
@@ -466,6 +511,21 @@ const EditActionO: FC<EditActionProps> = ({
         }
       }
 
+      targetRowItem.actions = targetRowItem.actions
+        .map((item) => {
+          if (item.id === actionItem.id) return actionItem;
+
+          const shift = adjustmentResult.shiftByActionId[item.id];
+          if (!shift) return item;
+
+          return {
+            ...item,
+            start: item.start + shift,
+            end: item.end + shift,
+          };
+        })
+        .sort((a, b) => a.start - b.start);
+
       setEditorData([...editorData]);
 
       // 更新transform以反映新位置
@@ -484,7 +544,7 @@ const EditActionO: FC<EditActionProps> = ({
       if (onActionMoveEnd)
         onActionMoveEnd({ action: actionItem, row: targetRowItem, start, end, isNewRow: needCreateNewRow, left, width, top, height, up, isMultiDrag: selectedActionIds?.length > 1 || isMultiDrag });
     },
-    [action, allowCreateTrack, editorData, id, onActionMoveEnd, parserTimeToTransform, parserTransformToTime, row, scale, scaleWidth, setDropPreview, setEditorData, startLeft, selectedActionIds],
+    [action, allowCreateTrack, editorData, id, onActionMoveEnd, parserTimeToTransform, parserTransformToTime, row, scale, scaleWidth, setEditorData, setInsertPreview, setTrackPreview, startLeft, selectedActionIds],
   );
 
   // 防抖版本的 handleDragEnd
@@ -571,7 +631,7 @@ const EditActionO: FC<EditActionProps> = ({
       height={rowHeight}
       grid={(gridSnap && gridSize) || DEFAULT_MOVE_GRID}
       adsorptionDistance={gridSnap ? Math.max((gridSize || DEFAULT_MOVE_GRID) / 2, DEFAULT_ADSORPTION_DISTANCE) : DEFAULT_ADSORPTION_DISTANCE}
-      // adsorptionPositions={dragLineData?.assistPositions}
+      adsorptionPositions={adsorptionPositions}
       bounds={{
         left: leftLimit,
         right: rightLimit,

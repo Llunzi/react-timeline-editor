@@ -9,10 +9,11 @@
     align-items: center;
 
     &[data-action-drag="true"] {
-      box-shadow: 0px 8px 8px rgba(77, 54, 41, 0.08);
-      border-radius: 34px;
-      cursor: pointer;
+      opacity: 0.55;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.18);
+      cursor: grabbing;
       z-index: 100;
+      transition: opacity 80ms ease-out, box-shadow 80ms ease-out;
     }
 
     & &-left-stretch,
