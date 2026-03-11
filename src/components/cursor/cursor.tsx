@@ -81,24 +81,24 @@ export const Cursor = React.forwardRef<CursorApi, CursorProps>((props, ref) => {
       parentRef={areaRef}
       bounds={{
         left: 0,
-        right: Math.min(timelineWidth, maxScaleCount * scaleWidth + startLeft - scrollLeft),
+        right: Math.min(timelineWidth, maxScaleCount * scaleWidth + startLeft),
       }}
       deltaScrollLeft={deltaScrollLeft}
       enableDragging={!disableDrag}
       enableResizing={false}
       onDragStart={() => {
         onCursorDragStart && onCursorDragStart(cursorTime);
-        draggingLeft.current = parserTimeToPixel(cursorTime, { startLeft, scaleWidth, scale }) - scrollLeft;
+        draggingLeft.current = parserTimeToPixel(cursorTime, { startLeft, scaleWidth, scale });
         rowRnd.current.updateLeft(draggingLeft.current);
       }}
       onDragEnd={() => {
-        const time = parserPixelToTime(draggingLeft.current + scrollLeft, { startLeft, scale, scaleWidth });
+        const time = parserPixelToTime(draggingLeft.current, { startLeft, scale, scaleWidth });
         setCursor({ time });
         onCursorDragEnd && onCursorDragEnd(time);
         draggingLeft.current = undefined;
       }}
       onDrag={({ left }, scroll = 0) => {
-        const scrollLeft = scrollSync.current.state.scrollLeft;
+        const scrollLeft = 0;// scrollSync.current.state.scrollLeft;
 
         if (!scroll || scrollLeft === 0) {
           // 拖拽时，如果当前left < left min，将数值设置为 left min
