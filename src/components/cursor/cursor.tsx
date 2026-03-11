@@ -53,7 +53,7 @@ export const Cursor = React.forwardRef<CursorApi, CursorProps>((props, ref) => {
 
   useImperativeHandle(ref, () => ({
     updateLeft: (cursorTime: number) => {
-      rowRnd.current.updateLeft(parserTimeToPixel(cursorTime, { startLeft, scaleWidth, scale }) - scrollLeft);
+      rowRnd.current.updateLeft(parserTimeToPixel(cursorTime, { startLeft, scaleWidth, scale }));
     },
   }));
 
@@ -61,10 +61,10 @@ export const Cursor = React.forwardRef<CursorApi, CursorProps>((props, ref) => {
     () => {
       if (typeof draggingLeft.current === 'undefined') {
         // 非dragging时，根据穿参更新cursor刻度（防抖）
-        rowRnd.current.updateLeft(parserTimeToPixel(cursorTime, { startLeft, scaleWidth, scale }) - scrollLeft);
+        rowRnd.current.updateLeft(parserTimeToPixel(cursorTime, { startLeft, scaleWidth, scale }));
       }
     },
-    [cursorTime, startLeft, scaleWidth, scale, scrollLeft],
+    [cursorTime, startLeft, scaleWidth, scale],
     {
       wait: 10,
     },
