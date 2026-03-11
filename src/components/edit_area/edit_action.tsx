@@ -112,6 +112,38 @@ const resolveTargetRowPlacement = ({
   return { targetRowIndex, needCreateNewRow, newRowPosition };
 };
 
+/**
+ * 从 initialTargetRowIndex 开始向下查找第一个在 [start, end) 时间段没有片段冲突的行。
+ * 找不到时若允许新建则返回 needCreateNewRow=true，否则回退到原行。
+ */
+const resolveSmartRow = ({
+  editorData,
+  initialTargetRowIndex,
+  actionId,
+  start,
+  end,
+  allowCreateTrack,
+}: {
+  editorData: TimelineRow[];
+  initialTargetRowIndex: number;
+  actionId: string;
+  start: number;
+  end: number;
+  allowCreateTrack: boolean;
+}): { targetRowIndex: number; needCreateNewRow: boolean } => {
+  for (let i = initialTargetRowIndex; i < editorData.length; i++) {
+    const candidate = editorData[i];
+    const hasConflict = candidate.actions.some((a) => a.id !== actionId && a.start < end && a.end > start);
+    if (!hasConflict) {
+      return { targetRowIndex: i, needCreateNewRow: false };
+    }
+  }
+  if (allowCreateTrack) {
+    return { targetRowIndex: editorData.length, needCreateNewRow: true };
+  }
+  return { targetRowIndex: Math.min(initialTargetRowIndex, editorData.length - 1), needCreateNewRow: false };
+};
+
 const buildInsertPreview = ({
   targetRow,
   actionId,
@@ -317,6 +349,13 @@ const EditActionO: FC<EditActionProps> = ({
     setDragging(true);
     clearRipplePreview(areaRef.current);
     originalPosition.current = { start: action.start, end: action.end };
+    // 将所在行的 z-index 临时提升到最顶层，突破 Grid 的 stacking context 限制
+    const actionEl = areaRef.current?.querySelector<HTMLElement>(`[data-action-id="${action.id}"]`);
+    const rowEl = actionEl?.closest<HTMLElement>('[class*="edit-row"]');
+    if (rowEl) {
+      rowEl.dataset.prevZIndex = rowEl.style.zIndex;
+      rowEl.style.zIndex = '99999';
+    }
     onActionMoveStart && onActionMoveStart({ action, row });
   };
   const handleDrag: RndDragCallback = ({ left, width, top, ...args }) => {
@@ -332,10 +371,8 @@ const EditActionO: FC<EditActionProps> = ({
     });
 
     const currentRowIndex = editorData.findIndex((item) => item.id === row.id);
-    const isSameRow = placement.targetRowIndex === currentRowIndex && !placement.needCreateNewRow;
-
     if (placement.needCreateNewRow) {
-      // 拖到轨道外，需要新建行：只显示插入线
+      // 鼠标已拖到所有轨道的边界外，直接显示新轨道插入线
       setInsertPreview?.(null);
       setTrackPreview?.({
         kind: 'new-row',
@@ -343,21 +380,39 @@ const EditActionO: FC<EditActionProps> = ({
         sourceRow: row,
       });
     } else {
-      // 同轨或跨轨到现有行：显示幽灵落点矩形
-      const targetRow = editorData[placement.targetRowIndex];
-      if (targetRow) {
-        setInsertPreview?.({
-          actionId: action.id,
-          rowId: targetRow.id,
-          start: currentRange.start,
-          end: currentRange.end,
-          shiftByActionId: {},
-        });
-        // 跨轨额外高亮目标行边框
-        setTrackPreview?.(isSameRow ? null : { kind: 'row', rowId: targetRow.id });
-      } else {
+      // 用 smart row 找真实可用行（冲突则往下级联）
+      const smart = resolveSmartRow({
+        editorData,
+        initialTargetRowIndex: placement.targetRowIndex,
+        actionId: action.id,
+        start: currentRange.start,
+        end: currentRange.end,
+        allowCreateTrack,
+      });
+
+      if (smart.needCreateNewRow) {
         setInsertPreview?.(null);
-        setTrackPreview?.(null);
+        setTrackPreview?.({
+          kind: 'new-row',
+          insertIndex: smart.targetRowIndex,
+          sourceRow: row,
+        });
+      } else {
+        const targetRow = editorData[smart.targetRowIndex];
+        const isSameRow = smart.targetRowIndex === currentRowIndex;
+        if (targetRow) {
+          setInsertPreview?.({
+            actionId: action.id,
+            rowId: targetRow.id,
+            start: currentRange.start,
+            end: currentRange.end,
+            shiftByActionId: {},
+          });
+          setTrackPreview?.(isSameRow ? null : { kind: 'row', rowId: targetRow.id });
+        } else {
+          setInsertPreview?.(null);
+          setTrackPreview?.(null);
+        }
       }
     }
 
@@ -401,13 +456,21 @@ const EditActionO: FC<EditActionProps> = ({
       setInsertPreview?.(null);
       setTrackPreview?.(null);
       clearRipplePreview(areaRef.current);
+      // 还原被临时提升 z-index 的行
+      const actionEl = areaRef.current?.querySelector<HTMLElement>(`[data-action-id="${action.id}"]`);
+      const rowEl = actionEl?.closest<HTMLElement>('[class*="edit-row"]');
+      if (rowEl) {
+        rowEl.style.zIndex = rowEl.dataset.prevZIndex ?? '';
+        delete rowEl.dataset.prevZIndex;
+      }
 
       // 计算时间
       let { start, end } = parserTransformToTime({ left, width }, { scaleWidth, scale, startLeft });
 
       console.log('handleDragEnd start, end : ', start, end);
 
-      let { targetRowIndex, needCreateNewRow, newRowPosition } = resolveTargetRowPlacement({
+      // Step 1: 根据鼠标垂直位置确定初始目标行
+      const placement = resolveTargetRowPlacement({
         editorData,
         row,
         top,
@@ -415,115 +478,83 @@ const EditActionO: FC<EditActionProps> = ({
         allowCreateTrack,
       });
 
+      // Step 2: 如果初始目标行有冲突，用 smart row 向下级联寻找空位
+      let finalTargetRowIndex: number;
+      let finalNeedCreateNewRow: boolean;
+      let finalNewRowPosition: 'before' | 'after' = placement.newRowPosition;
+
+      if (placement.needCreateNewRow) {
+        // 鼠标已在边界外，直接新建
+        finalTargetRowIndex = placement.targetRowIndex;
+        finalNeedCreateNewRow = true;
+      } else {
+        const smart = resolveSmartRow({
+          editorData,
+          initialTargetRowIndex: placement.targetRowIndex,
+          actionId: id,
+          start,
+          end,
+          allowCreateTrack,
+        });
+        finalTargetRowIndex = smart.targetRowIndex;
+        finalNeedCreateNewRow = smart.needCreateNewRow;
+        if (finalNeedCreateNewRow) finalNewRowPosition = 'after';
+      }
+
       // 设置数据
       const sourceRowItem = editorData.find((item) => item.id === row.id);
       let targetRowItem: TimelineRow;
 
-      // 如果需要创建新轨道
-      if (needCreateNewRow) {
+      if (finalNeedCreateNewRow) {
         const newRowId = `row_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-        // 计算新轨道的order值
-        let newOrder = 0;
-        if (editorData.length > 0) {
-          const existingOrders = editorData.map((r) => r.order || 0);
-          if (newRowPosition === 'before') {
-            // 插入到开头，使用最小order值减1
-            const minOrder = Math.min(...existingOrders);
-            newOrder = minOrder - 1;
-          } else {
-            // 插入到结尾，使用最大order值加1
-            const maxOrder = Math.max(...existingOrders);
-            newOrder = maxOrder + 1;
-          }
-        }
+        const existingOrders = editorData.map((r) => r.order || 0);
+        const newOrder =
+          finalNewRowPosition === 'before'
+            ? Math.min(...existingOrders) - 1
+            : Math.max(...existingOrders) + 1;
 
         targetRowItem = {
           id: newRowId,
           actions: [],
           rowHeight: rowHeight,
-          type: row.type, // 继承源轨道的type，保持分组一致
-          classNames: row.classNames, // 继承源轨道的classNames
-          canUpload: row.canUpload, // 继承源轨道的canUpload属性
-          order: newOrder, // 设置新轨道的order值
+          type: row.type,
+          classNames: row.classNames,
+          canUpload: row.canUpload,
+          order: newOrder,
         };
 
-        console.log('Creating new row:', newRowId, 'with type:', row.type, 'order:', newOrder);
-
-        // 将新轨道插入到正确的位置
-        if (newRowPosition === 'before') {
+        if (finalNewRowPosition === 'before') {
           editorData.unshift(targetRowItem);
-          targetRowIndex = 0;
-          console.log('New row inserted at beginning, index:', targetRowIndex);
+          finalTargetRowIndex = 0;
         } else {
           editorData.push(targetRowItem);
-          targetRowIndex = editorData.length - 1;
-          console.log('New row inserted at end, index:', targetRowIndex);
+          finalTargetRowIndex = editorData.length - 1;
         }
       } else {
-        targetRowItem = editorData[targetRowIndex];
-        console.log('Using existing row:', targetRowItem.id, 'at index:', targetRowIndex);
+        targetRowItem = editorData[finalTargetRowIndex];
       }
 
       const actionItem = sourceRowItem.actions.find((item) => item.id === id);
-      const adjustmentResult = buildInsertPreview({
-        targetRow: targetRowItem,
-        actionId: id,
-        start,
-        end,
-      });
 
-      start = adjustmentResult.start;
-      end = adjustmentResult.end;
-
-      console.log('Final position:', start, '-', end);
-
-      // 更新action的时间
+      // 直接使用拖拽落点时间，不做 ripple 推移
       actionItem.start = start;
       actionItem.end = end;
 
-      console.log('handleDragEnd actionItem: ', targetRowItem, row);
-
-      // 如果拖拽到了不同的row,需要移动action
+      // 如果拖拽到了不同的行，移动 action
       if (targetRowItem.id !== row.id) {
-        console.log('Moving action to different row');
-        console.log('Source row:', row.id, 'Target row:', targetRowItem.id);
-        console.log('Is new row:', needCreateNewRow);
-        console.log('Target row actions before:', targetRowItem.actions.length);
-
-        // 从原row中移除
         sourceRowItem.actions = sourceRowItem.actions.filter((item) => item.id !== id);
         actionItem.order = targetRowItem.order;
-        // 添加到目标row
         targetRowItem.actions.push(actionItem);
 
-        console.log('Target row actions after:', targetRowItem.actions.length);
-        console.log('Action added:', actionItem.id);
-
-        // 如果源轨道没有action了，删除源轨道
+        // 源轨道空了则删除
         if (sourceRowItem.actions.length === 0) {
-          console.log('Source row is empty, removing it:', sourceRowItem.id);
           const sourceRowIndex = editorData.findIndex((item) => item.id === sourceRowItem.id);
-          if (sourceRowIndex !== -1) {
-            editorData.splice(sourceRowIndex, 1);
-            console.log('Source row removed at index:', sourceRowIndex);
-          }
+          if (sourceRowIndex !== -1) editorData.splice(sourceRowIndex, 1);
         }
       }
 
       targetRowItem.actions = targetRowItem.actions
-        .map((item) => {
-          if (item.id === actionItem.id) return actionItem;
-
-          const shift = adjustmentResult.shiftByActionId[item.id];
-          if (!shift) return item;
-
-          return {
-            ...item,
-            start: item.start + shift,
-            end: item.end + shift,
-          };
-        })
+        .map((item) => (item.id === actionItem.id ? actionItem : item))
         .sort((a, b) => a.start - b.start);
 
       setEditorData([...editorData]);
@@ -542,7 +573,7 @@ const EditActionO: FC<EditActionProps> = ({
       fnCallback?.(actionItem);
       // 执行回调
       if (onActionMoveEnd)
-        onActionMoveEnd({ action: actionItem, row: targetRowItem, start, end, isNewRow: needCreateNewRow, left, width, top, height, up, isMultiDrag: selectedActionIds?.length > 1 || isMultiDrag });
+        onActionMoveEnd({ action: actionItem, row: targetRowItem, start, end, isNewRow: finalNeedCreateNewRow, left, width, top, height, up, isMultiDrag: selectedActionIds?.length > 1 || isMultiDrag });
     },
     [action, allowCreateTrack, editorData, id, onActionMoveEnd, parserTimeToTransform, parserTransformToTime, row, scale, scaleWidth, setEditorData, setInsertPreview, setTrackPreview, startLeft, selectedActionIds],
   );

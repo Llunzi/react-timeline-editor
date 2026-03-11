@@ -376,10 +376,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
             onSuccess({ file: file[0], isUploading: false });
             console.error('Upload error:', err);
           },
-        },
-        {
-          defaultRequest: () => undefined,
-        },
+        }
       );
     },
     [onBeforeUpload, handleUploadChange, customRequest],
