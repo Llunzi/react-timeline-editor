@@ -662,7 +662,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
               ref={gridRef}
               cellRenderer={cellRenderer}
               columnWidth={Math.max(scaleCount * scaleWidth + startLeft, width)}
-              width={width}
+              width={Math.max(scaleCount * scaleWidth + startLeft, width)}
               height={height}
               rowHeight={({ index }) => heights[index] || rowHeight || 0}
               overscanRowCount={10}
