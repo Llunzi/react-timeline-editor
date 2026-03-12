@@ -266,9 +266,11 @@ export const Timeline = React.memo(
     const onClickTimeline = useCallback(
       (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
         if (!domRef.current) return;
+        const timelineEditorEl = document.querySelector('.timeline-editor') as HTMLElement | null;
         const rect = domRef.current.getBoundingClientRect();
         const position = e.clientX - rect.x;
-        const left = position + scrollSync.current.state.scrollLeft;
+        const scrollLeft = timelineEditorEl?.scrollLeft ?? scrollSync.current?.state.scrollLeft ?? 0;
+        const left = position + scrollLeft;
         const time = parserPixelToTime(left, { startLeft, scale, scaleWidth });
 
         const action = (e.target as HTMLElement)?.closest('.timeline-editor-action');
