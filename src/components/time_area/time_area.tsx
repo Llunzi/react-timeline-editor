@@ -23,7 +23,7 @@ export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCurs
   /** 是否显示细分刻度 */
   const showUnit = scaleSplitCount > 0;
 
-  const clientWidth = document.documentElement.clientWidth;
+  const visibleWidth = timelineWidth || document.documentElement.clientWidth;
 
   /** 获取每个 cell 渲染内容 */
   const cellRenderer: GridCellRenderer = ({ columnIndex, key, style }) => {
@@ -34,7 +34,7 @@ export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCurs
     
     const cellPixel = startLeft + columnIndex * (showUnit ? scaleWidth / scaleSplitCount : scaleWidth);
     const cellWidth = showUnit ? scaleWidth / scaleSplitCount : scaleWidth;
-    const isVisible = cellPixel + cellWidth >= scrollLeft - 50 && cellPixel <= scrollLeft + clientWidth + 50;
+    const isVisible = cellPixel + cellWidth >= scrollLeft - 50 && cellPixel <= scrollLeft + visibleWidth + 50;
     
     if (!isVisible) {
       return null;

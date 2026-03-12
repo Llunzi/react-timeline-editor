@@ -1,5 +1,4 @@
 import React, { FC, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
-import { useThrottleFn } from 'ahooks';
 import { TimelineAction, TimelineRow } from '../../interface/action';
 import { CommonProp } from '../../interface/common_prop';
 import { DEFAULT_ADSORPTION_DISTANCE, DEFAULT_MOVE_GRID } from '../../interface/const';
@@ -462,8 +461,7 @@ const EditActionO: FC<EditActionProps> = ({
 
   const handleDragEndBase = useCallback<RndDragEndCallback>(
     ({ left, width, top, height, isMultiDrag, fn: fnCallback }) => {
-      console.log('handleDragEnd: ', left, width, top, height);
-      setDragging(false);
+        setDragging(false);
       setInsertPreview?.(null);
       setTrackPreview?.(null);
       clearRipplePreview(areaRef.current);
@@ -487,8 +485,6 @@ const EditActionO: FC<EditActionProps> = ({
 
       // 计算时间
       let { start, end } = parserTransformToTime({ left, width }, { scaleWidth, scale, startLeft });
-
-      console.log('handleDragEnd start, end : ', start, end);
 
       // Step 1: 根据鼠标垂直位置确定初始目标行
       const placement = resolveTargetRowPlacement({
@@ -599,10 +595,7 @@ const EditActionO: FC<EditActionProps> = ({
     [action, allowCreateTrack, editorData, id, onActionMoveEnd, parserTimeToTransform, parserTransformToTime, row, scale, scaleWidth, setEditorData, setInsertPreview, setTrackPreview, startLeft, selectedActionIds],
   );
 
-  // 防抖版本的 handleDragEnd
-  const { run: handleDragEnd } = useThrottleFn(handleDragEndBase, {
-    wait: 300,
-  });
+  const handleDragEnd = handleDragEndBase;
 
   const handleResizeStart: RndResizeStartCallback = (dir) => {
     onActionResizeStart && onActionResizeStart({ action, row, dir });
@@ -657,8 +650,6 @@ const EditActionO: FC<EditActionProps> = ({
   useEffect(() => {
     const handleActionMoveEnd = (e: CustomEvent) => {
       const { left, width, top, height, id, fn } = e.detail || {};
-
-      console.log('handleActionMoveEnd: ', left, width, top, height, id, fn);
 
       if (id === action.id) {
         handleDragEnd({ left, width, top, height, fn });

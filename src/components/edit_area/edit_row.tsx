@@ -1,4 +1,4 @@
-import React, { FC, useState, useEffect, useMemo, useCallback, useTransition } from 'react';
+import React, { FC, useMemo, useCallback } from 'react';
 import { TimelineRow } from '../../interface/action';
 import { CommonProp } from '../../interface/common_prop';
 import { prefix } from '../../utils/deal_class_prefix';
@@ -88,40 +88,20 @@ export const EditRow: FC<EditRowProps> = (props) => {
     uploadBgMusic,
   } = props;
 
-  const [visibleCount, setVisibleCount] = useState(20);
-  const [isPending, startTransition] = useTransition();
-
   const classNames = ['edit-row'];
   if (rowData?.selected) classNames.push('selected');
   if (rowData?.isPreview) classNames.push('preview-row');
-  if (props.insertPreview?.rowId === rowData?.id) classNames.push('insert-target');
-  if (props.trackPreview?.kind === 'row' && props.trackPreview.rowId === rowData?.id) classNames.push('move-target');
 
-  const clientWidth = document.documentElement.clientWidth;
-  const timeStart = parserPixelToTime(scrollLeft - 400, { startLeft, scale, scaleWidth });
-  const timeEnd = parserPixelToTime(scrollLeft + clientWidth + 400, { startLeft, scale, scaleWidth });
+  const viewportWidth = areaRef.current?.clientWidth || window.innerWidth || document.documentElement.clientWidth;
+  const overscanPx = Math.max(400, viewportWidth * 0.5);
+  const timeStart = parserPixelToTime(scrollLeft - overscanPx, { startLeft, scale, scaleWidth });
+  const timeEnd = parserPixelToTime(scrollLeft + viewportWidth + overscanPx, { startLeft, scale, scaleWidth });
 
   const visibleActions = useMemo(() => {
     return (rowData?.actions || [])
       .filter((action) => action.end >= timeStart && action.start <= timeEnd)
       .sort((a, b) => a.start - b.start);
   }, [rowData?.actions, timeStart, timeEnd]);
-
-  const renderActions = useMemo(() => {
-    return visibleActions.slice(0, visibleCount);
-  }, [visibleActions, visibleCount]);
-
-  useEffect(() => {
-    if (visibleCount < visibleActions.length) {
-      startTransition(() => {
-        setVisibleCount((prev) => Math.min(prev + 20, visibleActions.length));
-      });
-    }
-  }, [visibleCount, visibleActions.length]);
-
-  useEffect(() => {
-    setVisibleCount(20);
-  }, [rowData?.id]);
 
   const handleTime = useCallback(
     (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
@@ -181,16 +161,7 @@ export const EditRow: FC<EditRowProps> = (props) => {
         }
       }}
     >
-      {props.insertPreview?.rowId === rowData?.id && (
-        <div
-          className={prefix('insert-preview')}
-          style={parserTimeToTransform(
-            { start: props.insertPreview.start, end: props.insertPreview.end },
-            { startLeft, scale, scaleWidth },
-          )}
-        />
-      )}
-      {renderActions.map((action) => (
+      {visibleActions.map((action) => (
         <EditAction
           key={action.id}
           {...props}

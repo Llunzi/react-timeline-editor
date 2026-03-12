@@ -196,26 +196,107 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
   const [currentMouseTime, setCurrentMouseTime] = useState<number>(0);
   const heightRef = useRef(-1);
   const uploadRef = useRef<any>();
-  const [dragIndicator, setDragIndicator] = useState<{ targetIndex: number; rowsMoved: number } | null>(null);
-  const [insertPreview, setInsertPreview] = useState<{
-    actionId: string;
-    rowId: string;
-    start: number;
-    end: number;
-    shiftByActionId: Record<string, number>;
+
+  // ---- drag overlay: imperative DOM updates to avoid React re-renders on every mousemove ----
+  const insertPreviewDomRef = useRef<HTMLDivElement>(null);
+  const trackPreviewRowDomRef = useRef<HTMLDivElement>(null);
+  const trackPreviewLineDomRef = useRef<HTMLDivElement>(null);
+  const dragIndicatorDomRef = useRef<HTMLDivElement>(null);
+
+  // Latest data refs for re-applying positions on scroll
+  const insertPreviewDataRef = useRef<{
+    actionId: string; rowId: string; start: number; end: number; shiftByActionId: Record<string, number>;
   } | null>(null);
-  const [trackPreview, setTrackPreview] = useState<
-    | {
-        kind: 'row';
-        rowId: string;
-      }
-    | {
-        kind: 'new-row';
-        insertIndex: number;
-        sourceRow: TimelineRow;
-      }
+  const trackPreviewDataRef = useRef<
+    | { kind: 'row'; rowId: string }
+    | { kind: 'new-row'; insertIndex: number; sourceRow: TimelineRow }
     | null
   >(null);
+  const dragIndicatorDataRef = useRef<{ targetIndex: number; rowsMoved: number } | null>(null);
+
+  // Always-current snapshot of render-time props, read safely inside stable callbacks
+  const liveRef = useRef({ scrollTop, startLeft, scale, scaleWidth, editorData, rowHeight });
+  liveRef.current = { scrollTop, startLeft, scale, scaleWidth, editorData, rowHeight };
+
+  const setInsertPreview = useCallback((preview: typeof insertPreviewDataRef['current']) => {
+    insertPreviewDataRef.current = preview;
+    const div = insertPreviewDomRef.current;
+    if (!div) return;
+    if (!preview) { div.style.display = 'none'; return; }
+    const { scrollTop: st, startLeft: sl, scale: sc, scaleWidth: sw, editorData: ed, rowHeight: rh } = liveRef.current;
+    const targetIndex = ed.findIndex((item) => item.id === preview.rowId);
+    if (targetIndex < 0) { div.style.display = 'none'; return; }
+    let top = 0;
+    for (let i = 0; i < targetIndex; i++) top += (ed[i].rowHeight || rh) + 2;
+    const rowH = ed[targetIndex].rowHeight || rh;
+    const t = parserTimeToTransform({ start: preview.start, end: preview.end }, { startLeft: sl, scale: sc, scaleWidth: sw });
+    div.style.display = 'block';
+    div.style.left = `${t.left}px`;
+    div.style.width = `${t.width}px`;
+    div.style.top = `${top - st + 18}px`;
+    div.style.height = `${Math.max(rowH - 4, 8)}px`;
+  }, []);
+
+  const setTrackPreview = useCallback((preview: typeof trackPreviewDataRef['current']) => {
+    trackPreviewDataRef.current = preview;
+    const rowDiv = trackPreviewRowDomRef.current;
+    const lineDiv = trackPreviewLineDomRef.current;
+    if (!rowDiv || !lineDiv) return;
+    // Clear move-target class from all rows
+    editAreaRef.current?.querySelectorAll<HTMLElement>('.timeline-editor-edit-row').forEach((el) => {
+      el.classList.remove('move-target');
+    });
+    if (!preview) { rowDiv.style.display = 'none'; lineDiv.style.display = 'none'; return; }
+    const { scrollTop: st, editorData: ed, rowHeight: rh } = liveRef.current;
+    if (preview.kind === 'new-row') {
+      rowDiv.style.display = 'none';
+      const insertIndex = preview.insertIndex;
+      const srcH = preview.sourceRow.rowHeight || rh;
+      let lineTop: number;
+      if (insertIndex === 0) {
+        lineTop = 16 - st;
+      } else {
+        let t = 0;
+        const clamped = Math.min(insertIndex, ed.length);
+        for (let i = 0; i < clamped; i++) t += (ed[i].rowHeight || rh) + 2;
+        lineTop = t - st + 16;
+      }
+      lineDiv.style.display = 'block';
+      lineDiv.style.top = `${lineTop - 1}px`;
+      void srcH; // used for rowHeight fallback above
+    } else {
+      lineDiv.style.display = 'none';
+      const targetIndex = ed.findIndex((item) => item.id === preview.rowId);
+      if (targetIndex < 0) { rowDiv.style.display = 'none'; return; }
+      let top = 0;
+      for (let i = 0; i < targetIndex; i++) top += (ed[i].rowHeight || rh) + 2;
+      const rowH = ed[targetIndex].rowHeight || rh;
+      rowDiv.style.display = 'block';
+      rowDiv.style.top = `${top - st + 16}px`;
+      rowDiv.style.height = `${rowH}px`;
+      const rowEl = editAreaRef.current?.querySelector<HTMLElement>(`[data-row-id="${preview.rowId}"]`);
+      rowEl?.classList.add('move-target');
+    }
+  }, []);
+
+  const setDragIndicator = useCallback((indicator: typeof dragIndicatorDataRef['current']) => {
+    dragIndicatorDataRef.current = indicator;
+    const div = dragIndicatorDomRef.current;
+    if (!div) return;
+    if (!indicator) { div.style.display = 'none'; return; }
+    const { scrollTop: st, editorData: ed, rowHeight: rh } = liveRef.current;
+    let top = 0;
+    for (let i = 0; i < Math.min(indicator.targetIndex, ed.length); i++) top += ed[i].rowHeight || rh;
+    div.style.display = 'block';
+    div.style.top = `${top - st + 16}px`;
+  }, []);
+
+  // Re-apply overlay positions whenever scroll changes during an active drag
+  useLayoutEffect(() => {
+    if (insertPreviewDataRef.current) setInsertPreview(insertPreviewDataRef.current);
+    if (trackPreviewDataRef.current) setTrackPreview(trackPreviewDataRef.current);
+    if (dragIndicatorDataRef.current) setDragIndicator(dragIndicatorDataRef.current);
+  }, [scrollTop]);
 
 
   // 框选功能
@@ -258,39 +339,28 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     onUpdateEditorData,
   });
 
-  // 监听拖拽位置指示器事件
+  // 监听拖拽位置指示器事件（命令式 DOM，不触发 React 重渲染）
   useEffect(() => {
-    const handleDragMove = (e: CustomEvent) => {
-      setDragIndicator(e.detail);
-    };
-
-    const handleDragEnd = () => {
-      setDragIndicator(null);
-    };
-
+    const handleDragMove = (e: CustomEvent) => setDragIndicator(e.detail);
+    const handleDragEnd = () => setDragIndicator(null);
     window.addEventListener('row-drag-move', handleDragMove as EventListener);
     window.addEventListener('row-drag-end', handleDragEnd);
-
     return () => {
       window.removeEventListener('row-drag-move', handleDragMove as EventListener);
       window.removeEventListener('row-drag-end', handleDragEnd);
     };
-  }, []);
+  }, [setDragIndicator]);
 
   // 处理拖拽上传事件
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-
-    // 计算鼠标所在位置的时间
     if (!editAreaRef.current) return;
     const rect = editAreaRef.current.getBoundingClientRect();
     const position = e.clientX - rect.x;
     const left = position + scrollLeft;
     const time = parserPixelToTime(left, { startLeft, scale, scaleWidth });
     setCurrentMouseTime(time);
-
-    console.log('拖拽上传位置的时间:', time);
   };
 
   // ref 数据
@@ -400,9 +470,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         rowHeight={row?.rowHeight || rowHeight}
         rowData={row}
         allowCreateTrack={allowCreateTrack}
-        insertPreview={insertPreview}
         setInsertPreview={setInsertPreview}
-        trackPreview={trackPreview}
         setTrackPreview={setTrackPreview}
         containerRef={containerRef}
         selectedActionIds={selectedActionIds}
@@ -596,111 +664,62 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         }}
       </AutoSizer>
       <DragSelection />
-      {trackPreview &&
-        (() => {
-          if (trackPreview.kind === 'new-row') {
-            // 新增轨道：在插入点位置渲染一条发光横线
-            const insertIndex = trackPreview.insertIndex;
-            const srcHeight = trackPreview.sourceRow.rowHeight || rowHeight;
-            let lineTop: number;
-            if (insertIndex === 0) {
-              // 插入第一行之前：线在顶部
-              lineTop = 16 - scrollTop;
-            } else {
-              const pos = getNewRowPreviewPosition(insertIndex, srcHeight);
-              lineTop = pos.top - scrollTop + 16;
-            }
-            return (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: 8,
-                  right: 8,
-                  top: lineTop - 1,
-                  height: 3,
-                  background: 'rgba(24, 144, 255, 0.9)',
-                  borderRadius: 2,
-                  zIndex: 1002,
-                  pointerEvents: 'none',
-                  boxShadow: '0 0 0 1px rgba(24, 144, 255, 0.25), 0 0 8px rgba(24, 144, 255, 0.55)',
-                }}
-              />
-            );
-          }
-
-          // 跨轨到现有行：轨道灰色细边框高亮
-          const previewRow = getPreviewRowTop(trackPreview.rowId);
-          if (!previewRow) return null;
-          return (
-            <div
-              style={{
-                position: 'absolute',
-                left: 2,
-                right: 2,
-                top: previewRow.top - scrollTop + 16,
-                height: previewRow.height,
-                background: 'rgba(160, 160, 160, 0.08)',
-                border: '1.5px solid rgba(160, 160, 160, 0.5)',
-                borderRadius: 8,
-                zIndex: 999,
-                pointerEvents: 'none',
-              }}
-            />
-          );
-        })()}
-      {insertPreview &&
-        (() => {
-          const previewRow = getPreviewRowTop(insertPreview.rowId);
-          if (!previewRow) return null;
-          const transform = parserTimeToTransform(
-            { start: insertPreview.start, end: insertPreview.end },
-            { startLeft, scale, scaleWidth },
-          );
-
-          return (
-            <div
-              style={{
-                position: 'absolute',
-                left: transform.left,
-                width: transform.width,
-                top: previewRow.top - scrollTop + 18,
-                height: Math.max(previewRow.height - 4, 8),
-                background: 'rgba(160, 160, 160, 0.12)',
-                border: '1.5px dashed rgba(150, 150, 150, 0.7)',
-                borderRadius: 8,
-                zIndex: 1001,
-                pointerEvents: 'none',
-              }}
-            />
-          );
-        })()}
-      {dragIndicator &&
-        (() => {
-          // 计算拖拽位置指示器的位置
-          let top = 0;
-          const targetIndex = dragIndicator.targetIndex;
-
-          for (let i = 0; i < Math.min(targetIndex, editorData.length); i++) {
-            top += editorData[i].rowHeight || rowHeight;
-          }
-
-          return (
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                top: top - scrollTop + 16,
-                height: '3px',
-                backgroundColor: '#1890ff',
-                boxShadow: '0 0 8px rgba(24, 144, 255, 0.6)',
-                zIndex: 1001,
-                pointerEvents: 'none',
-                transition: 'top 0.05s ease-out',
-              }}
-            />
-          );
-        })()}
+      {/* Drag overlays: always in DOM, positions updated imperatively to avoid React re-renders */}
+      <div
+        ref={trackPreviewLineDomRef}
+        style={{
+          display: 'none',
+          position: 'absolute',
+          left: 8,
+          right: 8,
+          height: 3,
+          background: 'rgba(24, 144, 255, 0.9)',
+          borderRadius: 2,
+          zIndex: 1002,
+          pointerEvents: 'none',
+          boxShadow: '0 0 0 1px rgba(24, 144, 255, 0.25), 0 0 8px rgba(24, 144, 255, 0.55)',
+        }}
+      />
+      <div
+        ref={trackPreviewRowDomRef}
+        style={{
+          display: 'none',
+          position: 'absolute',
+          left: 2,
+          right: 2,
+          background: 'rgba(160, 160, 160, 0.08)',
+          border: '1.5px solid rgba(160, 160, 160, 0.5)',
+          borderRadius: 8,
+          zIndex: 999,
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        ref={insertPreviewDomRef}
+        style={{
+          display: 'none',
+          position: 'absolute',
+          background: 'rgba(160, 160, 160, 0.12)',
+          border: '1.5px dashed rgba(150, 150, 150, 0.7)',
+          borderRadius: 8,
+          zIndex: 1001,
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        ref={dragIndicatorDomRef}
+        style={{
+          display: 'none',
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          height: 3,
+          backgroundColor: '#1890ff',
+          boxShadow: '0 0 8px rgba(24, 144, 255, 0.6)',
+          zIndex: 1001,
+          pointerEvents: 'none',
+        }}
+      />
     </div>
   );
 });
