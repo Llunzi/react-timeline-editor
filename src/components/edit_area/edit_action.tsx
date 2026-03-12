@@ -701,6 +701,7 @@ const EditActionO: FC<EditActionProps> = ({
       <div
         data-action-id={action.id}
         data-action-drag={dragging}
+        data-action-name={action.file_name}
         data-action-disabled={action.is_disabled ? 1 : 0}
         onMouseDown={() => {
           isDragWhenClick.current = false;
