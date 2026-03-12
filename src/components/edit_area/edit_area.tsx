@@ -419,6 +419,21 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     };
   }, [onCtrlClick, editorData, handleSelectionChange]);
 
+  useEffect(() => {
+    const handleReplaceSelectionAction = (e: CustomEvent) => {
+      const { actionId, row } = e.detail || {};
+      if (!actionId || !row) return;
+      if (row.type !== editorData[0]?.type) return;
+      setSelectedActionIds(new Set([actionId]));
+      handleSelectionChange([actionId]);
+    };
+
+    window.addEventListener('replace-selection-action', handleReplaceSelectionAction as EventListener);
+    return () => {
+      window.removeEventListener('replace-selection-action', handleReplaceSelectionAction as EventListener);
+    };
+  }, [editorData, handleSelectionChange, setSelectedActionIds]);
+
   const saveUploader = (uploader: any) => {
     uploadRef.current = uploader;
   };

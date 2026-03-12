@@ -344,6 +344,7 @@ const EditActionO: FC<EditActionProps> = ({
 
   //#region [rgba(100,120,156,0.08)] 回调
   const handleDragStart: RndDragStartCallback = () => {
+    window.dispatchEvent(new CustomEvent('timeline-action-dragging-change', { detail: true }));
     // 保存原始位置
     setDragging(true);
     clearRipplePreview(areaRef.current);
@@ -461,6 +462,7 @@ const EditActionO: FC<EditActionProps> = ({
 
   const handleDragEndBase = useCallback<RndDragEndCallback>(
     ({ left, width, top, height, isMultiDrag, fn: fnCallback }) => {
+      window.dispatchEvent(new CustomEvent('timeline-action-dragging-change', { detail: false }));
         setDragging(false);
       setInsertPreview?.(null);
       setTrackPreview?.(null);
@@ -702,6 +704,16 @@ const EditActionO: FC<EditActionProps> = ({
         data-action-disabled={action.is_disabled ? 1 : 0}
         onMouseDown={() => {
           isDragWhenClick.current = false;
+          if ((selectedActionIds?.length || 0) > 0 && !selectedActionIds?.includes(action.id)) {
+            window.dispatchEvent(
+              new CustomEvent('replace-selection-action', {
+                detail: {
+                  actionId: action.id,
+                  row,
+                },
+              }),
+            );
+          }
         }}
         onClick={(e) => {
           let time: number;

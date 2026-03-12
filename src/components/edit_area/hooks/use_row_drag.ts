@@ -51,6 +51,14 @@ type StoredActionPosition = {
   width: number;
 };
 
+type MultiDragPlacement = {
+  actionId: string;
+  rowId: string;
+  start: number;
+  end: number;
+  conflicted: boolean;
+};
+
 const resetMultiDragState = (): MultiDragState => ({
   isMultiDrag: false,
   primaryActionId: null,
@@ -121,6 +129,65 @@ const findFirstAvailableRow = ({
   return ensureRowAtIndex({ rows, targetIndex: rows.length, templateRow });
 };
 
+const buildMultiDragPlacements = ({
+  editorData,
+  initialPositions,
+  selectedActionIds,
+  timeOffset,
+  rowDelta,
+}: {
+  editorData: TimelineRow[];
+  initialPositions: Map<string, StoredActionPosition>;
+  selectedActionIds: string[];
+  timeOffset: number;
+  rowDelta: number;
+}): MultiDragPlacement[] => {
+  const selectedSet = new Set(selectedActionIds);
+
+  return selectedActionIds
+    .map((actionId) => {
+      const initial = initialPositions.get(actionId);
+      if (!initial) return null;
+
+      const candidateRow = editorData[initial.rowIndex + rowDelta];
+      const nextStart = initial.start + timeOffset;
+      const nextEnd = initial.end + timeOffset;
+
+      if (!candidateRow) {
+        return {
+          actionId,
+          rowId: initial.rowId,
+          start: initial.start,
+          end: initial.end,
+          conflicted: true,
+        };
+      }
+
+      const hasConflict = candidateRow.actions.some(
+        (item) => !selectedSet.has(item.id) && item.start < nextEnd && item.end > nextStart,
+      );
+
+      if (hasConflict) {
+        return {
+          actionId,
+          rowId: initial.rowId,
+          start: initial.start,
+          end: initial.end,
+          conflicted: true,
+        };
+      }
+
+      return {
+        actionId,
+        rowId: candidateRow.id,
+        start: nextStart,
+        end: nextEnd,
+        conflicted: false,
+      };
+    })
+    .filter(Boolean) as MultiDragPlacement[];
+};
+
 export const useRowDrag = (options: UseRowDragOptions) => {
   const {
     selectedActionIds,
@@ -144,11 +211,15 @@ export const useRowDrag = (options: UseRowDragOptions) => {
     return Array.from(actions) as HTMLElement[];
   }, [containerRef]);
 
-  const previewPositionsRef = React.useRef<Map<string, { left: number; width: number }>>(new Map());
-
   // 拖拽开始
   const onDragStart = React.useCallback(({ action }: { action: TimelineAction; row: TimelineRow }) => {
     if (selectedActionIds.length <= 1) {
+      multiDragState.current = resetMultiDragState();
+      return;
+    }
+
+    if (!selectedActionIds.includes(action.id)) {
+      multiDragState.current = resetMultiDragState();
       return;
     }
 
@@ -280,7 +351,6 @@ export const useRowDrag = (options: UseRowDragOptions) => {
 
     if (!state.isMultiDrag || !params || params?.actionId !== state.primaryActionId) {
       multiDragState.current = resetMultiDragState();
-      previewPositionsRef.current = new Map();
       return;
     }
 
@@ -288,14 +358,12 @@ export const useRowDrag = (options: UseRowDragOptions) => {
     const { initialPositions, primaryActionId } = state;
     if (!setEditorData || initialPositions.size === 0) {
       multiDragState.current = resetMultiDragState();
-      previewPositionsRef.current = new Map();
       return;
     }
 
     const primaryInitial = initialPositions.get(primaryActionId!);
     if (!primaryInitial) {
       multiDragState.current = resetMultiDragState();
-      previewPositionsRef.current = new Map();
       return;
     }
 
@@ -304,108 +372,76 @@ export const useRowDrag = (options: UseRowDragOptions) => {
     const rowDelta = Math.round((top || 0) / rowHeight);
     if (Math.abs(timeOffset) < 0.001 && rowDelta === 0) {
       multiDragState.current = resetMultiDragState();
-      previewPositionsRef.current = new Map();
       return;
     }
 
+    const placements = buildMultiDragPlacements({
+      editorData,
+      initialPositions,
+      selectedActionIds,
+      timeOffset,
+      rowDelta,
+    });
+
     const rows = cloneRows(editorData);
     const updatedActions: TimelineAction[] = [];
+    const removedActions = new Map<string, TimelineAction>();
 
-    const primaryRemoval = removeActionFromRows(rows, primaryActionId!);
-    const fallbackPrimaryRow = rows.find((item) => item.id === primaryInitial.rowId) || editorData[primaryInitial.rowIndex];
-    const primaryTargetRowId = primaryRow?.id || primaryInitial.rowId;
-    let primaryTargetRow = rows.find((item) => item.id === primaryTargetRowId);
-    if (!primaryTargetRow) {
-      primaryTargetRow = { ...(primaryRow || fallbackPrimaryRow), actions: [] };
-      rows.push(primaryTargetRow);
-    }
-
-    if (primaryAction) {
-      const normalizedPrimaryAction = {
-        ...primaryAction,
-        start: primaryFinalTime.start,
-        end: primaryFinalTime.end,
-        order: primaryTargetRow.order,
-      };
-      primaryTargetRow.actions.push(normalizedPrimaryAction);
-      primaryTargetRow.actions.sort((a, b) => a.start - b.start);
-      updatedActions.push(normalizedPrimaryAction);
-    }
-
-    if (primaryRemoval.rowIndex !== -1 && rows[primaryRemoval.rowIndex]?.actions.length === 0) {
-      rows.splice(primaryRemoval.rowIndex, 1);
-    }
-
-    const selectedSecondaryIds = selectedActionIds.filter((id) => id !== primaryActionId);
-    for (const selectedId of selectedSecondaryIds) {
-      const initial = initialPositions.get(selectedId);
-      if (!initial) continue;
-
+    selectedActionIds.forEach((selectedId) => {
       const removal = removeActionFromRows(rows, selectedId);
-      const currentAction = removal.action;
-      if (!currentAction) continue;
+      if (removal.action) {
+        removedActions.set(selectedId, removal.action);
+      }
+    });
 
-      const templateRow =
-        rows.find((item) => item.id === initial.rowId) ||
-        editorData[initial.rowIndex] ||
-        primaryTargetRow;
-      const targetStart = currentAction.start + timeOffset;
-      const targetEnd = currentAction.end + timeOffset;
-      const preferredIndex = initial.rowIndex + rowDelta;
-      const targetRow = findFirstAvailableRow({
-        rows,
-        targetIndex: preferredIndex,
-        actionId: selectedId,
-        start: targetStart,
-        end: targetEnd,
-        templateRow,
-      });
+    placements.forEach((placement) => {
+      const actionItem =
+        removedActions.get(placement.actionId) ||
+        (placement.actionId === primaryActionId ? primaryAction : undefined);
+      if (!actionItem) return;
+
+      const targetRow = rows.find((item) => item.id === placement.rowId);
+      if (!targetRow) return;
 
       const nextAction: TimelineAction = {
-        ...currentAction,
-        start: targetStart,
-        end: targetEnd,
+        ...actionItem,
+        start: placement.start,
+        end: placement.end,
         order: targetRow.order,
       };
+
       targetRow.actions.push(nextAction);
       targetRow.actions.sort((a, b) => a.start - b.start);
       updatedActions.push(nextAction);
+    });
 
-      if (removal.rowIndex !== -1 && rows[removal.rowIndex]?.actions.length === 0) {
-        rows.splice(removal.rowIndex, 1);
-      }
+    const nextRows = rows
+      .filter((row) => row.actions.length > 0)
+      .sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+
+    const primaryPlacement = placements.find((item) => item.actionId === primaryActionId);
+    const primaryTargetRow = primaryPlacement
+      ? nextRows.find((item) => item.id === primaryPlacement.rowId)
+      : primaryRow;
+
+    setEditorData(nextRows);
+    if (primaryTargetRow) {
+      onUpdateEditorData?.(primaryTargetRow, updatedActions);
     }
 
-    rows.sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
-    setEditorData(rows);
-    onUpdateEditorData?.(primaryTargetRow, updatedActions);
-
     multiDragState.current = resetMultiDragState();
-    previewPositionsRef.current = new Map();
   }, [editorData, getSelectedActionEls, onUpdateEditorData, rowHeight, scale, scaleWidth, selectedActionIds, setEditorData, startLeft]);
-
-  // 获取指定 action 的预览位置
-  const getPreviewPosition = React.useCallback((actionId: string): { left: number; width: number } | null => {
-    return previewPositionsRef.current.get(actionId) || null;
-  }, []);
 
   // 检查是否是多选拖拽模式
   const isMultiDragging = React.useCallback((): boolean => {
     return multiDragState.current.isMultiDrag;
   }, []);
 
-  // 获取当前拖拽状态
-  const getMultiDragState = React.useCallback((): MultiDragState => {
-    return multiDragState.current;
-  }, []);
-
   return {
     onDragStart,
     onDragMove,
     onDragEnd,
-    getPreviewPosition,
     isMultiDragging,
-    getMultiDragState,
     isMultiDrag: multiDragState.current.isMultiDrag,
   };
 };
