@@ -382,6 +382,11 @@ export const useRowDrag = (options: UseRowDragOptions) => {
       timeOffset,
       rowDelta,
     });
+    const hasConflict = placements.some((placement) => placement.conflicted);
+    if (hasConflict) {
+      multiDragState.current = resetMultiDragState();
+      return;
+    }
 
     const rows = cloneRows(editorData);
     const updatedActions: TimelineAction[] = [];

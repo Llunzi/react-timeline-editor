@@ -488,6 +488,30 @@ const EditActionO: FC<EditActionProps> = ({
       // 计算时间
       let { start, end } = parserTransformToTime({ left, width }, { scaleWidth, scale, startLeft });
 
+      const isSelectionMultiDrag = (selectedActionIds?.length || 0) > 1 && selectedActionIds?.includes(action.id);
+      if (isSelectionMultiDrag || isMultiDrag) {
+        const originalTransform = parserTimeToTransform(
+          { start: action.start, end: action.end },
+          { startLeft, scale, scaleWidth }
+        );
+        setTransform({ ...originalTransform, top: 0 });
+        if (onActionMoveEnd) {
+          onActionMoveEnd({
+            action,
+            row,
+            start,
+            end,
+            left,
+            width,
+            top,
+            height,
+            up: 0,
+            isMultiDrag: true,
+          });
+        }
+        return;
+      }
+
       // Step 1: 根据鼠标垂直位置确定初始目标行
       const placement = resolveTargetRowPlacement({
         editorData,
