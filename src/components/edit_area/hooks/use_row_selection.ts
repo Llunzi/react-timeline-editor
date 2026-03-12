@@ -168,6 +168,9 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
       if (
         !target.closest('.timeline-editor-selection-box') &&
         !target.closest('.timeline-editor-action') &&
+        !target.closest('.timeline-editor-cursor') &&
+        !target.closest('.timeline-editor-cursor-area') &&
+        !target.closest('.timeline-editor-time-area') &&
         !target.closest('[data-draggable="true"]') &&
         !target.closest('.voice-studio-right-config-panel') &&
         !target.closest('.voice-studio-main-content-panel') &&
