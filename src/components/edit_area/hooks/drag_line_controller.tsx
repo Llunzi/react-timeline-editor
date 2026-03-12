@@ -98,8 +98,6 @@ export const DragLineController = memo(
     });
 
 
-    console.log('dragLineData = ', dragLineData);
-
     const initDragLine = useCallback(
       (data: { action: TimelineAction; row: TimelineRow }) => {
         if (dragLine) {
