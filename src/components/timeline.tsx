@@ -127,15 +127,36 @@ export const Timeline = React.memo(
     );
 
     /** 设置 scrollLeft */
+    const getMaxScrollLeft = useCallback(() => {
+      if (!Number.isFinite(width) || width <= 0) return 0;
+      return Math.max(scaleCount * scaleWidth + startLeft - width, 0);
+    }, [scaleCount, scaleWidth, startLeft, width]);
+
     const handleDeltaScrollLeft = useCallback(
       (delta: number) => {
         // 当超过最大距离时，禁止自动滚动
         const data = scrollSync.current.state.scrollLeft + delta;
-        if (data > scaleCount * (scaleWidth - 1) + startLeft - width) return;
+        const maxScrollLeft = getMaxScrollLeft();
+        if (data > maxScrollLeft) return;
         scrollSync.current && scrollSync.current.setState({ scrollLeft: Math.max(scrollSync.current.state.scrollLeft + delta, 0) });
       },
-      [scaleCount, scaleWidth, startLeft, width],
+      [getMaxScrollLeft],
     );
+
+    useLayoutEffect(() => {
+      const maxScrollLeft = getMaxScrollLeft();
+      const currentScrollLeft = scrollSync.current?.state.scrollLeft ?? 0;
+      const nextScrollLeft = Math.min(Math.max(currentScrollLeft, 0), maxScrollLeft);
+      const timelineEl = document.querySelector('.timeline-editor') as HTMLElement | null;
+
+      if (timelineEl && Math.abs(timelineEl.scrollLeft - nextScrollLeft) > 1) {
+        timelineEl.scrollLeft = nextScrollLeft;
+      }
+
+      if (scrollSync.current && Math.abs(currentScrollLeft - nextScrollLeft) > 1) {
+        scrollSync.current.setState({ scrollLeft: nextScrollLeft });
+      }
+    }, [getMaxScrollLeft, scale, scaleWidth, scaleCount, width]);
 
     const handleInitDragLine = useCallback(
       (data: any) => {
@@ -226,14 +247,16 @@ export const Timeline = React.memo(
       play: (param: Parameters<TimelineState['play']>[0]) => engineRef.current.play({ ...param }),
       pause: engineRef.current.pause.bind(engineRef.current),
       setScrollLeft: (val) => {
-        scrollSync.current && scrollSync.current.setState({ scrollLeft: Math.max(val, 0) });
+        const nextScrollLeft = Math.min(Math.max(val, 0), getMaxScrollLeft());
+        scrollSync.current && scrollSync.current.setState({ scrollLeft: nextScrollLeft });
       },
       setScrollLeftFromTime: (val) => {
         const containerEl = document.querySelector('.timeline-editor');
         if (!containerEl) return;
         const left = startLeft + (scaleWidth / scale) * val;
-        containerEl.scrollLeft = Math.max(left, 0);
-        scrollSync.current && scrollSync.current.setState({ scrollLeft: Math.max(left, 0) });
+        const nextScrollLeft = Math.min(Math.max(left, 0), getMaxScrollLeft());
+        containerEl.scrollLeft = nextScrollLeft;
+        scrollSync.current && scrollSync.current.setState({ scrollLeft: nextScrollLeft });
       },
       setScrollTop: (val) => {
         scrollSync.current && scrollSync.current.setState({ scrollTop: Math.max(val, 0) });

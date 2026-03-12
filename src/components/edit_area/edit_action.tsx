@@ -143,6 +143,48 @@ const resolveSmartRow = ({
   return { targetRowIndex: Math.min(initialTargetRowIndex, editorData.length - 1), needCreateNewRow: false };
 };
 
+const hasMultiDragConflict = ({
+  editorData,
+  selectedActionIds,
+  primaryAction,
+  timeOffset,
+  rowDelta,
+}: {
+  editorData: TimelineRow[];
+  selectedActionIds: string[];
+  primaryAction: TimelineAction;
+  timeOffset: number;
+  rowDelta: number;
+}) => {
+  const selectedSet = new Set(selectedActionIds);
+
+  return selectedActionIds.some((selectedId) => {
+    let sourceRowIndex = -1;
+    let sourceAction: TimelineAction | undefined;
+
+    editorData.some((candidateRow, rowIndex) => {
+      const action = candidateRow.actions.find((item) => item.id === selectedId);
+      if (!action) return false;
+      sourceRowIndex = rowIndex;
+      sourceAction = action;
+      return true;
+    });
+
+    const initialAction = sourceAction || (selectedId === primaryAction.id ? primaryAction : undefined);
+    if (!initialAction || sourceRowIndex < 0) return true;
+
+    const targetRow = editorData[sourceRowIndex + rowDelta];
+    if (!targetRow) return true;
+
+    const nextStart = initialAction.start + timeOffset;
+    const nextEnd = initialAction.end + timeOffset;
+
+    return targetRow.actions.some(
+      (item) => !selectedSet.has(item.id) && item.start < nextEnd && item.end > nextStart,
+    );
+  });
+};
+
 const buildInsertPreview = ({
   targetRow,
   actionId,
@@ -373,56 +415,82 @@ const EditActionO: FC<EditActionProps> = ({
     isDragWhenClick.current = true;
 
     const currentRange = parserTransformToTime({ left, width }, { scaleWidth, scale, startLeft });
-    const placement = resolveTargetRowPlacement({
-      editorData,
-      row,
-      top,
-      rowHeight,
-      allowCreateTrack,
-    });
+    const isSelectionMultiDrag = ((selectedActionIds?.length || 0) > 1) && selectedActionIds?.includes(action.id);
+    const multiDragConflict = isSelectionMultiDrag
+      ? hasMultiDragConflict({
+          editorData,
+          selectedActionIds: selectedActionIds || [],
+          primaryAction: action,
+          timeOffset: currentRange.start - action.start,
+          rowDelta: Math.round((top || 0) / rowHeight),
+        })
+      : false;
 
-    const currentRowIndex = editorData.findIndex((item) => item.id === row.id);
-    if (placement.needCreateNewRow) {
-      // 鼠标已拖到所有轨道的边界外，直接显示新轨道插入线
-      setInsertPreview?.(null);
-      setTrackPreview?.({
-        kind: 'new-row',
-        insertIndex: placement.targetRowIndex,
-        sourceRow: row,
-      });
-    } else {
-      // 用 smart row 找真实可用行（冲突则往下级联）
-      const smart = resolveSmartRow({
-        editorData,
-        initialTargetRowIndex: placement.targetRowIndex,
+    if (multiDragConflict) {
+      setInsertPreview?.({
         actionId: action.id,
-        start: currentRange.start,
-        end: currentRange.end,
+        rowId: row.id,
+        start: action.start,
+        end: action.end,
+        shiftByActionId: {},
+      });
+      setTrackPreview?.(null);
+    } else if (isSelectionMultiDrag) {
+      clearRipplePreview(areaRef.current);
+    }
+
+    if (!multiDragConflict) {
+      const placement = resolveTargetRowPlacement({
+        editorData,
+        row,
+        top,
+        rowHeight,
         allowCreateTrack,
       });
-
-      if (smart.needCreateNewRow) {
+  
+      const currentRowIndex = editorData.findIndex((item) => item.id === row.id);
+      if (placement.needCreateNewRow) {
+        // 鼠标已拖到所有轨道的边界外，直接显示新轨道插入线
         setInsertPreview?.(null);
         setTrackPreview?.({
           kind: 'new-row',
-          insertIndex: smart.targetRowIndex,
+          insertIndex: placement.targetRowIndex,
           sourceRow: row,
         });
       } else {
-        const targetRow = editorData[smart.targetRowIndex];
-        const isSameRow = smart.targetRowIndex === currentRowIndex;
-        if (targetRow) {
-          setInsertPreview?.({
-            actionId: action.id,
-            rowId: targetRow.id,
-            start: currentRange.start,
-            end: currentRange.end,
-            shiftByActionId: {},
-          });
-          setTrackPreview?.(isSameRow ? null : { kind: 'row', rowId: targetRow.id });
-        } else {
+        // 用 smart row 找真实可用行（冲突则往下级联）
+        const smart = resolveSmartRow({
+          editorData,
+          initialTargetRowIndex: placement.targetRowIndex,
+          actionId: action.id,
+          start: currentRange.start,
+          end: currentRange.end,
+          allowCreateTrack,
+        });
+  
+        if (smart.needCreateNewRow) {
           setInsertPreview?.(null);
-          setTrackPreview?.(null);
+          setTrackPreview?.({
+            kind: 'new-row',
+            insertIndex: smart.targetRowIndex,
+            sourceRow: row,
+          });
+        } else {
+          const targetRow = editorData[smart.targetRowIndex];
+          const isSameRow = smart.targetRowIndex === currentRowIndex;
+          if (targetRow) {
+            setInsertPreview?.({
+              actionId: action.id,
+              rowId: targetRow.id,
+              start: currentRange.start,
+              end: currentRange.end,
+              shiftByActionId: {},
+            });
+            setTrackPreview?.(isSameRow ? null : { kind: 'row', rowId: targetRow.id });
+          } else {
+            setInsertPreview?.(null);
+            setTrackPreview?.(null);
+          }
         }
       }
     }
