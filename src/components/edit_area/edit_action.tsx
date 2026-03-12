@@ -356,6 +356,17 @@ const EditActionO: FC<EditActionProps> = ({
       rowEl.dataset.prevZIndex = rowEl.style.zIndex;
       rowEl.style.zIndex = '99999';
     }
+    // 多选拖拽时，解除 overflow:hidden 限制，防止次级片段拖出边界后被裁剪
+    if (areaRef.current) {
+      areaRef.current.dataset.prevOverflow = areaRef.current.style.overflow;
+      areaRef.current.style.overflow = 'visible';
+      // Grid 容器同步处理
+      const gridEl = areaRef.current.querySelector<HTMLElement>('.ReactVirtualized__Grid');
+      if (gridEl) {
+        gridEl.dataset.prevOverflow = gridEl.style.overflow;
+        gridEl.style.overflow = 'visible';
+      }
+    }
     onActionMoveStart && onActionMoveStart({ action, row });
   };
   const handleDrag: RndDragCallback = ({ left, width, top, ...args }) => {
@@ -462,6 +473,16 @@ const EditActionO: FC<EditActionProps> = ({
       if (rowEl) {
         rowEl.style.zIndex = rowEl.dataset.prevZIndex ?? '';
         delete rowEl.dataset.prevZIndex;
+      }
+      // 还原 overflow
+      if (areaRef.current) {
+        areaRef.current.style.overflow = areaRef.current.dataset.prevOverflow ?? '';
+        delete areaRef.current.dataset.prevOverflow;
+        const gridEl = areaRef.current.querySelector<HTMLElement>('.ReactVirtualized__Grid');
+        if (gridEl) {
+          gridEl.style.overflow = gridEl.dataset.prevOverflow ?? '';
+          delete gridEl.dataset.prevOverflow;
+        }
       }
 
       // 计算时间

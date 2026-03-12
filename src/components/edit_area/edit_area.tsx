@@ -366,18 +366,16 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
 
       const onSuccess = handleUploadChange(row);
       onSuccess({ file: file[0], isUploading: true });
-      customRequest?.(
-        {
-          file: file[0],
-          onSuccess,
-          method: 'POST',
-          action: 'bgm',
-          onError: (err) => {
-            onSuccess({ file: file[0], isUploading: false });
-            console.error('Upload error:', err);
-          },
-        }
-      );
+      customRequest?.({
+        file: file[0],
+        onSuccess,
+        method: 'POST',
+        action: 'bgm',
+        onError: (err) => {
+          onSuccess({ file: file[0], isUploading: false });
+          console.error('Upload error:', err);
+        },
+      });
     },
     [onBeforeUpload, handleUploadChange, customRequest],
   );
@@ -630,7 +628,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
             );
           }
 
-          // 跨轨到现有行：细边框高亮，不填充
+          // 跨轨到现有行：轨道灰色细边框高亮
           const previewRow = getPreviewRowTop(trackPreview.rowId);
           if (!previewRow) return null;
           return (
@@ -641,9 +639,9 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
                 right: 2,
                 top: previewRow.top - scrollTop + 16,
                 height: previewRow.height,
-                background: 'rgba(24, 144, 255, 0.04)',
-                border: '1.5px solid rgba(24, 144, 255, 0.55)',
-                borderRadius: 6,
+                background: 'rgba(160, 160, 160, 0.08)',
+                border: '1.5px solid rgba(160, 160, 160, 0.5)',
+                borderRadius: 8,
                 zIndex: 999,
                 pointerEvents: 'none',
               }}
@@ -667,9 +665,9 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
                 width: transform.width,
                 top: previewRow.top - scrollTop + 18,
                 height: Math.max(previewRow.height - 4, 8),
-                background: 'rgba(24, 144, 255, 0.12)',
-                border: '1.5px dashed rgba(24, 144, 255, 0.75)',
-                borderRadius: 6,
+                background: 'rgba(160, 160, 160, 0.12)',
+                border: '1.5px dashed rgba(150, 150, 150, 0.7)',
+                borderRadius: 8,
                 zIndex: 1001,
                 pointerEvents: 'none',
               }}
