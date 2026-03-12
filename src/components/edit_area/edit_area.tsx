@@ -242,10 +242,6 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     const rowDiv = trackPreviewRowDomRef.current;
     const lineDiv = trackPreviewLineDomRef.current;
     if (!rowDiv || !lineDiv) return;
-    // Clear move-target class from all rows
-    editAreaRef.current?.querySelectorAll<HTMLElement>('.timeline-editor-edit-row').forEach((el) => {
-      el.classList.remove('move-target');
-    });
     if (!preview) { rowDiv.style.display = 'none'; lineDiv.style.display = 'none'; return; }
     const { scrollTop: st, editorData: ed, rowHeight: rh } = liveRef.current;
     if (preview.kind === 'new-row') {
@@ -272,10 +268,8 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
       for (let i = 0; i < targetIndex; i++) top += (ed[i].rowHeight || rh) + 2;
       const rowH = ed[targetIndex].rowHeight || rh;
       rowDiv.style.display = 'block';
-      rowDiv.style.top = `${top - st + 16}px`;
-      rowDiv.style.height = `${rowH}px`;
-      const rowEl = editAreaRef.current?.querySelector<HTMLElement>(`[data-row-id="${preview.rowId}"]`);
-      rowEl?.classList.add('move-target');
+      rowDiv.style.top = `${top - st + 17}px`;
+      rowDiv.style.height = `${Math.max(rowH - 2, 8)}px`;
     }
   }, []);
 
@@ -520,6 +514,8 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
             top: data.top || 0,
             height: data.height || 0,
             up: data.up || 0,
+              action: data.action,
+              row: data.row,
           });
           if (!data.isMultiDrag) {
             return onActionMoveEnd && onActionMoveEnd(data);
@@ -688,7 +684,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
           left: 2,
           right: 2,
           background: 'rgba(160, 160, 160, 0.08)',
-          border: '1.5px solid rgba(160, 160, 160, 0.5)',
+          boxShadow: 'inset 0 0 0 1.5px rgba(160, 160, 160, 0.5)',
           borderRadius: 8,
           zIndex: 999,
           pointerEvents: 'none',

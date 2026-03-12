@@ -1,6 +1,6 @@
 import React from 'react';
 import { TimelineAction, TimelineRow } from '../../../interface/action';
-import { parserTimeToPixel, parserTimeToTransform, parserTransformToTime } from '../../../utils/deal_data';
+import { parserTimeToTransform, parserTransformToTime } from '../../../utils/deal_data';
 
 export interface UseRowDragOptions {
   selectedActionIds: string[];
@@ -25,7 +25,7 @@ export interface MultiDragState {
   /** 拖拽的主 action ID */
   primaryActionId?: string | null;
   /** 所有选中 action 的初始位置信息 */
-  initialPositions: Map<string, { rowId: string; start: number; end: number; left: number; width: number }>;
+  initialPositions: Map<string, StoredActionPosition>;
   /** 当前拖拽的偏移量 */
   dragOffset: { dx: number; dy: number };
   /** 拖拽开始时的光标位置 */
@@ -42,65 +42,132 @@ export interface MultiDragState {
   end: number;
 }
 
+type StoredActionPosition = {
+  rowId: string;
+  rowIndex: number;
+  start: number;
+  end: number;
+  left: number;
+  width: number;
+};
+
+const resetMultiDragState = (): MultiDragState => ({
+  isMultiDrag: false,
+  primaryActionId: null,
+  initialPositions: new Map(),
+  dragOffset: { dx: 0, dy: 0 },
+  startCursor: null,
+  isDraggingSelection: false,
+  start: 0,
+  end: 0,
+});
+
+const cloneRows = (rows: TimelineRow[]) => rows.map((row) => ({ ...row, actions: [...row.actions] }));
+
+const removeActionFromRows = (rows: TimelineRow[], actionId: string) => {
+  for (let i = 0; i < rows.length; i++) {
+    const actionIndex = rows[i].actions.findIndex((item) => item.id === actionId);
+    if (actionIndex !== -1) {
+      const [action] = rows[i].actions.splice(actionIndex, 1);
+      return { rowIndex: i, action };
+    }
+  }
+  return { rowIndex: -1, action: undefined as TimelineAction | undefined };
+};
+
+const ensureRowAtIndex = ({
+  rows,
+  targetIndex,
+  templateRow,
+}: {
+  rows: TimelineRow[];
+  targetIndex: number;
+  templateRow: TimelineRow;
+}) => {
+  const clampedIndex = Math.max(0, Math.min(targetIndex, rows.length));
+  if (clampedIndex < rows.length) return rows[clampedIndex];
+
+  const previousOrder = rows[rows.length - 1]?.order ?? templateRow.order ?? 0;
+  const newRow: TimelineRow = {
+    ...templateRow,
+    id: `row_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    actions: [],
+    order: Number(previousOrder) + 0.01,
+  };
+  rows.push(newRow);
+  return newRow;
+};
+
+const findFirstAvailableRow = ({
+  rows,
+  targetIndex,
+  actionId,
+  start,
+  end,
+  templateRow,
+}: {
+  rows: TimelineRow[];
+  targetIndex: number;
+  actionId: string;
+  start: number;
+  end: number;
+  templateRow: TimelineRow;
+}) => {
+  const safeIndex = Math.max(0, targetIndex);
+  for (let i = safeIndex; i < rows.length; i++) {
+    const hasConflict = rows[i].actions.some((item) => item.id !== actionId && item.start < end && item.end > start);
+    if (!hasConflict) return rows[i];
+  }
+  return ensureRowAtIndex({ rows, targetIndex: rows.length, templateRow });
+};
+
 export const useRowDrag = (options: UseRowDragOptions) => {
-  const { selectedActionIds, editorData, containerRef, scale = 1, scaleWidth = 160,
-    startLeft = 20, setEditorData, onUpdateEditorData } = options;
+  const {
+    selectedActionIds,
+    editorData,
+    containerRef,
+    scale = 1,
+    scaleWidth = 160,
+    startLeft = 20,
+    setEditorData,
+    rowHeight = 35,
+    onUpdateEditorData,
+  } = options;
 
   // 多选拖拽状态
-  const multiDragState = React.useRef<MultiDragState>({
-    isMultiDrag: false,
-    primaryActionId: null,
-    initialPositions: new Map(),
-    dragOffset: { dx: 0, dy: 0 },
-    startCursor: null,
-    isDraggingSelection: false, // 是否正在拖拽选中的元素
-    start: 0,
-    end: 0,
-  });
+  const multiDragState = React.useRef<MultiDragState>(resetMultiDragState());
 
   // 获取选中的 action DOM 元素
   const getSelectedActionEls = React.useCallback(() => {
     if (!containerRef?.current) return [];
-    // 查找所有选中的 action 元素（action-selected 是选中状态的类名）
     const actions = containerRef.current.querySelectorAll('.timeline-editor-action-selected');
     return Array.from(actions) as HTMLElement[];
   }, [containerRef]);
 
-  const actionEls = getSelectedActionEls();
-
-  // 存储所有选中 action 的当前预览位置
-  const [previewPositions, setPreviewPositions] = React.useState<Map<string, { left: number; width: number }>>(new Map());
+  const previewPositionsRef = React.useRef<Map<string, { left: number; width: number }>>(new Map());
 
   // 拖拽开始
-  const onDragStart = React.useCallback(({ action, row }: { action: TimelineAction; row: TimelineRow }) => {
-    // 检查是否有多选
+  const onDragStart = React.useCallback(({ action }: { action: TimelineAction; row: TimelineRow }) => {
     if (selectedActionIds.length <= 1) {
-      console.log('useRowDrag: 单选拖拽，不进行多选处理');
       return;
     }
 
-    // 获取当前选中的元素
     const selectedEls = getSelectedActionEls();
     if (selectedEls.length <= 1) {
-      console.log('useRowDrag: DOM元素不足，跳过');
       return;
     }
 
-    // 记录每个选中元素的初始位置
     const initialElementPositions = new Map<string, { x: number; y: number }>();
 
     selectedEls.forEach(el => {
-      // 获取 action id
       const actionId = el.getAttribute('data-action-id');
       if (!actionId) return;
 
-      // 获取当前 transform
       const style = window.getComputedStyle(el);
       const transform = style.transform;
 
       let x = 0, y = 0;
       if (transform && transform !== 'none') {
-        // 解析 matrix
         const matrix = transform.match(/matrix\(([^)]+)\)/);
         if (matrix) {
           const values = matrix[1].split(', ');
@@ -109,27 +176,19 @@ export const useRowDrag = (options: UseRowDragOptions) => {
         }
       }
 
-      // 存储初始位置
       initialElementPositions.set(actionId, { x, y });
-
-      // 初始化 data 属性
       el.setAttribute('data-x', x.toString());
       el.setAttribute('data-y', y.toString());
-
-      console.log('useRowDrag: 初始化元素位置', { actionId, x, y });
     });
 
-    // 记录初始位置信息（用于计算时间偏移）
-    const initialPositions = new Map<string, { rowId: string; start: number; end: number; left: number; width: number }>();
-    editorData.forEach((r) => {
+    const initialPositions = new Map<string, StoredActionPosition>();
+    editorData.forEach((r, rowIndex) => {
       r.actions.forEach((a) => {
         if (selectedActionIds.includes(a.id)) {
-          const transform = parserTimeToTransform(
-            { start: a.start, end: a.end },
-            { startLeft, scale, scaleWidth }
-          );
+          const transform = parserTimeToTransform({ start: a.start, end: a.end }, { startLeft, scale, scaleWidth });
           initialPositions.set(a.id, {
             rowId: r.id,
+            rowIndex,
             start: a.start,
             end: a.end,
             left: transform.left,
@@ -139,7 +198,6 @@ export const useRowDrag = (options: UseRowDragOptions) => {
       });
     });
 
-    // 记录初始位置
     multiDragState.current = {
       isMultiDrag: true,
       initialPositions,
@@ -152,12 +210,6 @@ export const useRowDrag = (options: UseRowDragOptions) => {
       start: action.start,
       end: action.end,
     };
-
-    console.log('useRowDrag: 开始多选拖拽', {
-      actionId: action.id,
-      selectedCount: selectedActionIds.length,
-      elementCount: selectedEls.length
-    });
   }, [selectedActionIds, editorData, getSelectedActionEls, scale, scaleWidth, startLeft]);
 
   // 拖拽移动
@@ -182,42 +234,25 @@ export const useRowDrag = (options: UseRowDragOptions) => {
       return;
     }
 
-    // 获取当前选中的元素
     const selectedEls = getSelectedActionEls();
     if (selectedEls.length === 0) return;
 
-    // 更新偏移量
-    state.offsetX = params.gap;
+    state.offsetX = params.gap ?? 0;
     state.offsetY = (state.offsetY || 0) + dy;
 
-    // 遍历所有选中的元素，同步移动
     selectedEls.forEach(el => {
       const elActionId = el.getAttribute('data-action-id');
       if (!elActionId || elActionId === actionId) return;
 
-      // 获取元素初始位置
       const initialPos = state.initialElementPositions.get(elActionId);
       if (!initialPos) return;
 
-      // 计算新位置 = 初始位置 + 总偏移量
       const newX = initialPos.x + state.offsetX;
       const newY = initialPos.y + state.offsetY;
 
-      // 更新元素位置
       el.style.transform = `translate(${newX}px, ${newY}px)`;
-
-      // 存储当前位置数据
       el.setAttribute('data-x', newX.toString());
       el.setAttribute('data-y', newY.toString());
-    });
-
-    console.log('useRowDrag: 拖拽移动', {
-      actionId,
-      dx,
-      dy,
-      offsetX: state.offsetX,
-      offsetY: state.offsetY,
-      elementCount: selectedEls.length
     });
   }, [getSelectedActionEls]);
 
@@ -231,192 +266,128 @@ export const useRowDrag = (options: UseRowDragOptions) => {
     dx?: number;
     dy?: number;
     up: number;
+    action?: TimelineAction;
+    row?: TimelineRow;
   }) => {
     const state = multiDragState.current;
-    const { up } = params || {};
 
-    console.log('useRowDrag: 拖拽结束', params);
-
-    // 清理 DOM 元素上的 data 属性
     const selectedEls = getSelectedActionEls();
     selectedEls.forEach(el => {
       el.removeAttribute('data-x');
       el.removeAttribute('data-y');
-      // 清除 transform 样式
       el.style.transform = '';
     });
 
     if (!state.isMultiDrag || !params || params?.actionId !== state.primaryActionId) {
-      // 清理状态
-      multiDragState.current = {
-        isMultiDrag: false,
-        primaryActionId: null,
-        initialPositions: new Map(),
-        dragOffset: { dx: 0, dy: 0 },
-        startCursor: null,
-        isDraggingSelection: false,
-        start: 0,
-        end: 0,
-      };
-      setPreviewPositions(new Map());
+      multiDragState.current = resetMultiDragState();
+      previewPositionsRef.current = new Map();
       return;
     }
 
-    const { actionId, left, width, height, dx = 0, dy = 0 } = params;
-    let { top } = params;
-    const { initialPositions, primaryActionId, offsetX = 0, offsetY = 0 } = state;
-
-    if (up === 0) {
-      top = 0;
-    } else if (up === 1) {
-      top = 35;
-    } else if (up === -1) {
-      top = -35;
-    }
-
-    // 如果没有初始位置数据，说明不是有效的多选拖拽
+    const { left, width, top, height, action: primaryAction, row: primaryRow } = params;
+    const { initialPositions, primaryActionId } = state;
     if (!setEditorData || initialPositions.size === 0) {
-      // 清理状态
-      multiDragState.current = {
-        isMultiDrag: false,
-        primaryActionId: null,
-        initialPositions: new Map(),
-        dragOffset: { dx: 0, dy: 0 },
-        startCursor: null,
-        isDraggingSelection: false,
-        start: 0,
-        end: 0,
-      };
-      setPreviewPositions(new Map());
+      multiDragState.current = resetMultiDragState();
+      previewPositionsRef.current = new Map();
       return;
     }
 
-    // 计算主 action 的最终时间
-    const primaryFinalTime = parserTransformToTime(
-      { left, width },
-      { startLeft, scale, scaleWidth }
-    );
-
-    // 计算主 action 的偏移量（时间）
     const primaryInitial = initialPositions.get(primaryActionId!);
     if (!primaryInitial) {
-      multiDragState.current = {
-        isMultiDrag: false,
-        primaryActionId: null,
-        initialPositions: new Map(),
-        dragOffset: { dx: 0, dy: 0 },
-        startCursor: null,
-        isDraggingSelection: false,
-        start: 0,
-        end: 0,
-      };
-      setPreviewPositions(new Map());
+      multiDragState.current = resetMultiDragState();
+      previewPositionsRef.current = new Map();
       return;
     }
 
+    const primaryFinalTime = parserTransformToTime({ left, width }, { startLeft, scale, scaleWidth });
     const timeOffset = primaryFinalTime.start - primaryInitial.start;
+    const rowDelta = Math.round((top || 0) / rowHeight);
+    if (Math.abs(timeOffset) < 0.001 && rowDelta === 0) {
+      multiDragState.current = resetMultiDragState();
+      previewPositionsRef.current = new Map();
+      return;
+    }
 
-    console.log('useRowDrag: 拖拽结束', {
-      actionId,
-      primaryInitialStart: primaryInitial.start,
-      primaryFinalStart: primaryFinalTime.start,
-      timeOffset,
-      selectedCount: initialPositions.size,
-      offsetX,
-      offsetY
-    });
+    const rows = cloneRows(editorData);
+    const updatedActions: TimelineAction[] = [];
 
-    // 如果时间偏移太小，不更新数据
-    if (Math.abs(timeOffset) < 0.001) {
-      console.log('useRowDrag: 偏移太小，跳过更新');
-      multiDragState.current = {
-        isMultiDrag: false,
-        primaryActionId: null,
-        initialPositions: new Map(),
-        dragOffset: { dx: 0, dy: 0 },
-        startCursor: null,
-        isDraggingSelection: false,
-        start: 0,
-        end: 0,
+    const primaryRemoval = removeActionFromRows(rows, primaryActionId!);
+    const fallbackPrimaryRow = rows.find((item) => item.id === primaryInitial.rowId) || editorData[primaryInitial.rowIndex];
+    const primaryTargetRowId = primaryRow?.id || primaryInitial.rowId;
+    let primaryTargetRow = rows.find((item) => item.id === primaryTargetRowId);
+    if (!primaryTargetRow) {
+      primaryTargetRow = { ...(primaryRow || fallbackPrimaryRow), actions: [] };
+      rows.push(primaryTargetRow);
+    }
+
+    if (primaryAction) {
+      const normalizedPrimaryAction = {
+        ...primaryAction,
+        start: primaryFinalTime.start,
+        end: primaryFinalTime.end,
+        order: primaryTargetRow.order,
       };
-      setPreviewPositions(new Map());
-      return;
+      primaryTargetRow.actions.push(normalizedPrimaryAction);
+      primaryTargetRow.actions.sort((a, b) => a.start - b.start);
+      updatedActions.push(normalizedPrimaryAction);
     }
 
-    // ------------------------------------------------------------
-
-    const { start, end, isMultiDrag } = multiDragState.current;
-    // 如果是多选拖拽，处理所有选中的 actions
-    if (isMultiDrag) {
-      // 计算当前 action 的偏移量
-      const currentStart = parserTransformToTime({ left, width }, { scaleWidth, scale, startLeft }).start;
-      const deltaTime = currentStart - start;
-
-      console.log('Multi-drag ended, deltaTime:', deltaTime);
-
-      const updatedData = [];
-      // 更新所有选中的 actions 的最终位置
-      editorData.map((r) => ({
-        ...r,
-        actions: r.actions.map((a) => {
-          if (selectedActionIds.includes(a.id) && primaryActionId !== a.id) {
-            const newStart = a.start + deltaTime;
-            const newEnd = a.end + deltaTime;
-
-            // 计算 left, width, top, height
-            const { left, width } = parserTimeToTransform({ start: newStart, end: newEnd }, { scaleWidth, scale, startLeft })
-
-            setTimeout(() => {
-              console.log('useRowDrag 1222: 拖拽结束', { left, width, top, height, id: a.id });
-              window.dispatchEvent(new CustomEvent('action-move-end', {
-                detail: {
-                  left, width, top, height, id: a.id, fn: (item: TimelineAction) => {
-                    updatedData.push(item)
-
-                    if (updatedData.length === selectedActionIds.length) {
-                      onUpdateEditorData?.(r, updatedData);
-                    }
-                  }
-                }
-              }));
-            }, 0);
-
-            return { ...a, start: newStart, end: newEnd };
-          }
-
-          if (a.id === primaryActionId) {
-            updatedData.push(a)
-          }
-          return a;
-        }),
-      }));
-
-      // setEditorData([...updatedData]);
-      return;
+    if (primaryRemoval.rowIndex !== -1 && rows[primaryRemoval.rowIndex]?.actions.length === 0) {
+      rows.splice(primaryRemoval.rowIndex, 1);
     }
 
-    // ------------------------------------------------------------
+    const selectedSecondaryIds = selectedActionIds.filter((id) => id !== primaryActionId);
+    for (const selectedId of selectedSecondaryIds) {
+      const initial = initialPositions.get(selectedId);
+      if (!initial) continue;
 
-    // 清理状态
-    multiDragState.current = {
-      isMultiDrag: false,
-      primaryActionId: null,
-      initialPositions: new Map(),
-      dragOffset: { dx: 0, dy: 0 },
-      startCursor: null,
-      isDraggingSelection: false,
-      start: 0,
-      end: 0,
-    };
-    setPreviewPositions(new Map());
+      const removal = removeActionFromRows(rows, selectedId);
+      const currentAction = removal.action;
+      if (!currentAction) continue;
 
-    console.log('useRowDrag: 多选拖拽完成', { updatedCount: initialPositions.size });
-  }, [editorData, setEditorData, scale, scaleWidth, startLeft, getSelectedActionEls, selectedActionIds]);
+      const templateRow =
+        rows.find((item) => item.id === initial.rowId) ||
+        editorData[initial.rowIndex] ||
+        primaryTargetRow;
+      const targetStart = currentAction.start + timeOffset;
+      const targetEnd = currentAction.end + timeOffset;
+      const preferredIndex = initial.rowIndex + rowDelta;
+      const targetRow = findFirstAvailableRow({
+        rows,
+        targetIndex: preferredIndex,
+        actionId: selectedId,
+        start: targetStart,
+        end: targetEnd,
+        templateRow,
+      });
+
+      const nextAction: TimelineAction = {
+        ...currentAction,
+        start: targetStart,
+        end: targetEnd,
+        order: targetRow.order,
+      };
+      targetRow.actions.push(nextAction);
+      targetRow.actions.sort((a, b) => a.start - b.start);
+      updatedActions.push(nextAction);
+
+      if (removal.rowIndex !== -1 && rows[removal.rowIndex]?.actions.length === 0) {
+        rows.splice(removal.rowIndex, 1);
+      }
+    }
+
+    rows.sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+    setEditorData(rows);
+    onUpdateEditorData?.(primaryTargetRow, updatedActions);
+
+    multiDragState.current = resetMultiDragState();
+    previewPositionsRef.current = new Map();
+  }, [editorData, getSelectedActionEls, onUpdateEditorData, rowHeight, scale, scaleWidth, selectedActionIds, setEditorData, startLeft]);
 
   // 获取指定 action 的预览位置
   const getPreviewPosition = React.useCallback((actionId: string): { left: number; width: number } | null => {
-    return previewPositions.get(actionId) || null;
-  }, [previewPositions]);
+    return previewPositionsRef.current.get(actionId) || null;
+  }, []);
 
   // 检查是否是多选拖拽模式
   const isMultiDragging = React.useCallback((): boolean => {
