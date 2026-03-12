@@ -188,6 +188,9 @@ export const Timeline = React.memo(
       const handleClickOutside = (e: MouseEvent) => {
         const target = e.target as HTMLElement;
 
+        const actionEl = target.closest('.timeline-editor-time-area');
+        if (actionEl) return;
+
         engineRef.current.trigger('mousedown', {
           target,
           evt: e,
@@ -304,7 +307,6 @@ export const Timeline = React.memo(
       };
     }, [startLeft, scale, scaleWidth]);
 
-
     console.log('Timeline cursorTime = ', cursorTime);
 
     return (
@@ -312,7 +314,7 @@ export const Timeline = React.memo(
         <ScrollSync ref={scrollSync}>
           {({ scrollTop, onScroll }) => {
             const scrollLeft = containerEl?.scrollLeft || 0;
-            
+
             return (
               <>
                 <TimeArea
@@ -360,7 +362,7 @@ export const Timeline = React.memo(
                   />
                 ) : null}
                 {areaCount > 1 ? (
-                  <div id="time-editor-container" ref={containerRef} style={{ height: '100%' }} onClick={onClickTimeline}>
+                  <div id="time-editor-container" ref={containerRef} style={{ height: '100%', background: '#fff' }} onClick={onClickTimeline}>
                     {Object.keys(groupedData).map((key, index) => {
                       const handleGroupDataChange = (updatedData: TimelineRow[]) => {
                         const mergedData = editorData.filter((item) => String(item.type) !== key).concat(updatedData);
