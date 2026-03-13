@@ -93,7 +93,7 @@ export const EditRow: FC<EditRowProps> = (props) => {
   if (rowData?.isPreview) classNames.push('preview-row');
 
   const viewportWidth = areaRef.current?.clientWidth || window.innerWidth || document.documentElement.clientWidth;
-  const overscanPx = Math.max(2000, viewportWidth * 2);
+  const overscanPx = Math.max(400, viewportWidth * 0.5);
   const timeStart = parserPixelToTime(scrollLeft - overscanPx, { startLeft, scale, scaleWidth });
   const timeEnd = parserPixelToTime(scrollLeft + viewportWidth + overscanPx, { startLeft, scale, scaleWidth });
 

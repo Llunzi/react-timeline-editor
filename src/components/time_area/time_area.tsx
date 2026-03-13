@@ -23,7 +23,7 @@ export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCurs
   /** 是否显示细分刻度 */
   const showUnit = scaleSplitCount > 0;
 
-  const visibleWidth = timelineWidth || document.documentElement.clientWidth;
+  const visibleWidth = document.documentElement.clientWidth;
 
   /** 获取每个 cell 渲染内容 */
   const cellRenderer: GridCellRenderer = ({ columnIndex, key, style }) => {
