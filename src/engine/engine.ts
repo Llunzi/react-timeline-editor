@@ -315,7 +315,7 @@ export class TimelineEngine extends Emitter<EventTypes> implements ITimelineEngi
       const action = this._actionMap[actionId];
 
       // 不在播放区域内
-      if (action.start > time || action.end < time) {
+      if (action.start > time || action.end <= time) {
         const effect = this._effectMap[action.effectId];
 
         if (effect && effect.source?.leave) {
