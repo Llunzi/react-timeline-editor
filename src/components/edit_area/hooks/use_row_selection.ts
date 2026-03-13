@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSelectionContainer } from '@air/react-drag-to-select';
 import { TimelineRow } from '../../../interface/action';
 
@@ -16,6 +16,8 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
   const { editorData, rowHeight, scrollTop, scrollLeft, onSelectionChange, disabled = false, containerRef } = options;
 
   const [selectedActionIds, setSelectedActionIds] = useState<Set<string>>(new Set());
+  const justFinishedSelectionRef = useRef(false);
+  const selectionResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 计算框选区域与 action 的交集
   const getIntersectedActions = useCallback(
@@ -89,6 +91,15 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
       }
     },
     onSelectionEnd: () => {
+      justFinishedSelectionRef.current = true;
+      if (selectionResetTimerRef.current) {
+        clearTimeout(selectionResetTimerRef.current);
+      }
+      selectionResetTimerRef.current = setTimeout(() => {
+        justFinishedSelectionRef.current = false;
+        selectionResetTimerRef.current = null;
+      }, 0);
+
       // 清除框选框
       setTimeout(() => {
         const selectionBoxes = document.querySelectorAll('.timeline-editor-selection-box');
@@ -195,12 +206,16 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      if (selectionResetTimerRef.current) {
+        clearTimeout(selectionResetTimerRef.current);
+      }
     };
   }, [handleKeyDown]);
 
   return {
     DragSelection,
     selectedActionIds: Array.from(selectedActionIds),
+    justFinishedSelectionRef,
     clearSelection,
     onClickOutside: handleClickOutside,
     onCtrlClick: handleCtrlClick,

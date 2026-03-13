@@ -311,7 +311,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     [editorData, setEditorData, onMutiSelectChange],
   );
 
-  const { DragSelection, selectedActionIds, onClickOutside, onCtrlClick, setSelectedActionIds } = useRowSelection({
+  const { DragSelection, selectedActionIds, justFinishedSelectionRef, onClickOutside, onCtrlClick, setSelectedActionIds } = useRowSelection({
     editorData,
     rowHeight,
     scrollTop,
@@ -626,6 +626,11 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     <div
       ref={editAreaRef}
       className={prefix('edit-area') + ` ${(className || '').replace('timeline-editor', '') || ''}`}
+      onClickCapture={(e) => {
+        if (!justFinishedSelectionRef.current) return;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       style={{
         height: isMulti ? _totalHeight : 'unset',
         maxHeight: isMulti ? _totalHeight : 'unset',
