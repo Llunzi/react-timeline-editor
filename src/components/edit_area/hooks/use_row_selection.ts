@@ -13,15 +13,7 @@ export interface UseRowSelectionOptions {
 }
 
 export const useRowSelection = (options: UseRowSelectionOptions) => {
-  const {
-    editorData,
-    rowHeight,
-    scrollTop,
-    scrollLeft,
-    onSelectionChange,
-    disabled = false,
-    containerRef,
-  } = options;
+  const { editorData, rowHeight, scrollTop, scrollLeft, onSelectionChange, disabled = false, containerRef } = options;
 
   const [selectedActionIds, setSelectedActionIds] = useState<Set<string>>(new Set());
 
@@ -55,8 +47,7 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
             const actionBottom = actionTop + actionHeight;
 
             // 检查框选区域是否与 action 相交
-            const isActionIntersecting = boxLeft < actionRight && boxRight > actionLeft &&
-              boxTop < actionBottom && boxBottom > actionTop;
+            const isActionIntersecting = boxLeft < actionRight && boxRight > actionLeft && boxTop < actionBottom && boxBottom > actionTop;
 
             if (isActionIntersecting) {
               intersectedActionIds.push(action.id);
@@ -67,7 +58,7 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
 
       return { actionIds: intersectedActionIds };
     },
-    [editorData, rowHeight, scrollTop, scrollLeft, containerRef]
+    [editorData, rowHeight, scrollTop, scrollLeft, containerRef],
   );
 
   // 使用 @air/react-drag-to-select 的框选功能
@@ -85,10 +76,7 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
       const newSelectedActionIds = new Set(actionIds);
 
       // 只在选中状态变化时更新
-      if (
-        newSelectedActionIds.size !== selectedActionIds.size ||
-        ![...newSelectedActionIds].every((id) => selectedActionIds.has(id))
-      ) {
+      if (newSelectedActionIds.size !== selectedActionIds.size || ![...newSelectedActionIds].every((id) => selectedActionIds.has(id))) {
         setSelectedActionIds(newSelectedActionIds);
         onSelectionChange(actionIds);
       }
@@ -101,7 +89,14 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
       }
     },
     onSelectionEnd: () => {
-      // 框选结束时的处理（可用于性能优化）
+      // 清除框选框
+      setTimeout(() => {
+        const selectionBoxes = document.querySelectorAll('.timeline-editor-selection-box');
+        Array.from(selectionBoxes).forEach((selectionBox) => {
+          // @ts-expect-error 忽略类型检查错误
+          selectionBox.style.left = '-10px';
+        });
+      }, 0);
     },
     shouldStartSelecting: (target) => {
       if (disabled) return false;
@@ -126,6 +121,7 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
         border: '2px solid #1890ff',
         backgroundColor: 'rgba(24, 144, 255, 0.1)',
         zIndex: 9999,
+        left: '-10px',
       },
     },
     isEnabled: !disabled,
@@ -156,14 +152,14 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
       setSelectedActionIds(newSelectedActionIds);
       onSelectionChange(Array.from(newSelectedActionIds));
     },
-    [disabled, selectedActionIds, onSelectionChange]
+    [disabled, selectedActionIds, onSelectionChange],
   );
 
   // 点击空白区域取消选择
   const handleClickOutside = useCallback(
     (target: HTMLElement) => {
       if (disabled) return;
-      
+
       // 如果点击的不是选中的 action 或框选框，清除选择
       if (
         !target.closest('.timeline-editor-selection-box') &&
@@ -179,19 +175,19 @@ export const useRowSelection = (options: UseRowSelectionOptions) => {
         clearSelection();
       }
     },
-    [disabled, clearSelection]
+    [disabled, clearSelection],
   );
 
   // 监听 Escape 键取消选择
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (disabled) return;
-      
+
       if (e.key === 'Escape' && selectedActionIds.size > 0) {
         clearSelection();
       }
     },
-    [disabled, selectedActionIds.size, clearSelection]
+    [disabled, selectedActionIds.size, clearSelection],
   );
 
   useEffect(() => {

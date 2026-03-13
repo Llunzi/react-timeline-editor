@@ -185,6 +185,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         segment_type: 'bgm',
         isUploading: false,
         uid: info.file?.uid,
+        waveform: info.file.response?.peaks || [],
       };
 
       onUpdateEditorData?.(row, [newAction]);
