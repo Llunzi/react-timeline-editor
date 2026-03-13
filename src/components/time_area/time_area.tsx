@@ -23,7 +23,7 @@ export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCurs
   /** 是否显示细分刻度 */
   const showUnit = scaleSplitCount > 0;
 
-  const visibleWidth = timelineWidth;
+  const visibleWidth = document.documentElement.clientWidth;
 
   /** 获取每个 cell 渲染内容 */
   const cellRenderer: GridCellRenderer = ({ columnIndex, key, style }) => {
@@ -61,6 +61,10 @@ export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCurs
     }
   };
   const estColumnWidth=getColumnWidth({index:1});
+
+
+  console.log('estColumnWidth', estColumnWidth, ', scrollLeft = ', scrollLeft);
+
   return (
     <div className={prefix('time-area')}>
       <AutoSizer>
@@ -89,7 +93,7 @@ export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCurs
                   if (hideCursor) return;
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                   const position = e.clientX - rect.x;
-                  const left = Math.max(position + scrollLeft, startLeft);
+                  const left = Math.max(position, startLeft);
                   if (left > maxScaleCount * scaleWidth + startLeft) return;
 
                   const time = parserPixelToTime(left, { startLeft, scale, scaleWidth });
