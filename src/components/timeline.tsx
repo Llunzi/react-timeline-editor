@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import { ScrollSync, OnScrollParams } from 'react-virtualized';
 import { ITimelineEngine, TimelineEngine } from '../engine/engine';
 import { MIN_SCALE_COUNT, PREFIX, START_CURSOR_TIME } from '../interface/const';
@@ -9,7 +9,7 @@ import { Cursor, CursorApi } from './cursor/cursor';
 import { EditArea } from './edit_area/edit_area';
 import './timeline.less';
 import { TimeArea } from './time_area/time_area';
-import { groupBy, throttle } from 'lodash-es';
+import { groupBy } from 'lodash-es';
 import { DragLineController, DragLineControllerRef } from './edit_area/hooks/drag_line_controller';
 
 export const Timeline = React.memo(
@@ -138,7 +138,8 @@ export const Timeline = React.memo(
         const data = scrollSync.current.state.scrollLeft + delta;
         const maxScrollLeft = getMaxScrollLeft();
         if (data > maxScrollLeft) return;
-        scrollSync.current && scrollSync.current.setState({ scrollLeft: Math.max(scrollSync.current.state.scrollLeft + delta, 0) });
+        const nextScrollLeft = Math.max(scrollSync.current.state.scrollLeft + delta, 0);
+        scrollSync.current && scrollSync.current.setState({ scrollLeft: nextScrollLeft });
       },
       [getMaxScrollLeft],
     );
@@ -147,11 +148,6 @@ export const Timeline = React.memo(
       const maxScrollLeft = getMaxScrollLeft();
       const currentScrollLeft = scrollSync.current?.state.scrollLeft ?? 0;
       const nextScrollLeft = Math.min(Math.max(currentScrollLeft, 0), maxScrollLeft);
-      const timelineEl = document.querySelector('.timeline-editor') as HTMLElement | null;
-
-      if (timelineEl && Math.abs(timelineEl.scrollLeft - nextScrollLeft) > 1) {
-        timelineEl.scrollLeft = nextScrollLeft;
-      }
 
       if (scrollSync.current && Math.abs(currentScrollLeft - nextScrollLeft) > 1) {
         scrollSync.current.setState({ scrollLeft: nextScrollLeft });
@@ -251,11 +247,8 @@ export const Timeline = React.memo(
         scrollSync.current && scrollSync.current.setState({ scrollLeft: nextScrollLeft });
       },
       setScrollLeftFromTime: (val) => {
-        const containerEl = document.querySelector('.timeline-editor');
-        if (!containerEl) return;
         const left = startLeft + (scaleWidth / scale) * val;
         const nextScrollLeft = Math.min(Math.max(left, 0), getMaxScrollLeft());
-        containerEl.scrollLeft = nextScrollLeft;
         scrollSync.current && scrollSync.current.setState({ scrollLeft: nextScrollLeft });
       },
       setScrollTop: (val) => {
@@ -266,10 +259,9 @@ export const Timeline = React.memo(
     const onClickTimeline = useCallback(
       (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
         if (!domRef.current) return;
-        const timelineEditorEl = document.querySelector('.timeline-editor') as HTMLElement | null;
         const rect = domRef.current.getBoundingClientRect();
         const position = e.clientX - rect.x;
-        const scrollLeft = timelineEditorEl?.scrollLeft ?? scrollSync.current?.state.scrollLeft ?? 0;
+        const scrollLeft = scrollSync.current?.state.scrollLeft ?? 0;
         const left = position + scrollLeft;
         const time = parserPixelToTime(left, { startLeft, scale, scaleWidth });
 
@@ -297,48 +289,12 @@ export const Timeline = React.memo(
       }
     }, []);
 
-    const containerEl = document.querySelector('.timeline-editor');
-
-    useEffect(() => {
-      const containerEl = document.querySelector('.timeline-editor');
-
-      const handleScroll = throttle((e: Event) => {
-        console.log('handleScroll', e);
-        const scrollLeft = (e.target as HTMLElement).scrollLeft || 0;
-        scrollSync.current && scrollSync.current.setState({ scrollLeft });
-
-        const clientWidth = document.documentElement.clientWidth;
-        const timeStart = parserPixelToTime(scrollLeft, { startLeft, scale, scaleWidth });
-        const timeEnd = parserPixelToTime(scrollLeft + clientWidth, { startLeft, scale, scaleWidth });
-
-        window.dispatchEvent(
-          new CustomEvent('container-scroll', {
-            detail: {
-              scrollLeft: scrollLeft,
-              scrollWidth: containerEl.scrollWidth,
-              clientWidth,
-              timeStart,
-              timeEnd,
-            },
-          }),
-        );
-      }, 100);
-
-      containerEl.addEventListener('scroll', handleScroll);
-
-      return () => {
-        containerEl.removeEventListener('scroll', handleScroll);
-        handleScroll.cancel();
-      };
-    }, [startLeft, scale, scaleWidth]);
-
     console.log('Timeline cursorTime = ', cursorTime);
 
     return (
       <div ref={domRef} style={style} className={`${className || ''} ${theme || ''} ${PREFIX} ${disableDrag ? PREFIX + '-disable' : ''}`}>
         <ScrollSync ref={scrollSync}>
-          {({ scrollTop, onScroll }) => {
-            const scrollLeft = containerEl?.scrollLeft || 0;
+          {({ scrollTop, scrollLeft = 0, onScroll }) => {
 
             return (
               <>

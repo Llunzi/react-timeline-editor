@@ -23,7 +23,7 @@ export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCurs
   /** 是否显示细分刻度 */
   const showUnit = scaleSplitCount > 0;
 
-  const visibleWidth = document.documentElement.clientWidth;
+  const visibleWidth = timelineWidth;
 
   /** 获取每个 cell 渲染内容 */
   const cellRenderer: GridCellRenderer = ({ columnIndex, key, style }) => {
@@ -87,11 +87,9 @@ export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCurs
                 style={{ width: timelineWidth, height }}
                 onClick={(e) => {
                   if (hideCursor) return;
-                  const timelineEditorEl = document.querySelector('.timeline-editor') as HTMLElement | null;
                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                   const position = e.clientX - rect.x;
-                  const actualScrollLeft = timelineEditorEl?.scrollLeft ?? scrollLeft;
-                  const left = Math.max(position + actualScrollLeft, startLeft);
+                  const left = Math.max(position + scrollLeft, startLeft);
                   if (left > maxScaleCount * scaleWidth + startLeft) return;
 
                   const time = parserPixelToTime(left, { startLeft, scale, scaleWidth });
