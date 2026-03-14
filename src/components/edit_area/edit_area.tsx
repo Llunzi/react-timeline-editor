@@ -376,7 +376,6 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
   useEffect(() => {
     if (!engineRef?.current) return;
     engineRef.current.on('mousedown', (data) => {
-      console.log('mousedown', data);
       onClickOutside(data.target);
     });
 
@@ -394,7 +393,6 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         return;
       }
 
-      console.log('ctrl-click-action', row, ', editorData = ', editorData);
       setSelectedActionIds((ids) => {
         const newIds = new Set<string>();
         ids.forEach((id) => {
@@ -453,7 +451,6 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         action: 'bgm',
         onError: (err) => {
           onSuccess({ file: file[0], isUploading: false });
-          console.error('Upload error:', err);
         },
       });
     },

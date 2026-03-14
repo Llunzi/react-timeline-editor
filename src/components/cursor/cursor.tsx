@@ -47,7 +47,6 @@ export const Cursor = React.forwardRef<CursorApi, CursorProps>((props, ref) => {
     onCursorDragEnd,
   } = props;
 
-  console.log('Cursor cursorTime', cursorTime);
   const rowRnd = useRef<RowRndApi>();
   const draggingLeft = useRef<undefined | number>();
 

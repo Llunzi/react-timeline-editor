@@ -44,8 +44,6 @@ export const Timeline = React.memo(
     const containerRef = useRef<HTMLDivElement>();
     const cursorRef = useRef<CursorApi>(null);
 
-    console.log(' Timeline mounted = ', areaRef);
-
     // 编辑器数据
     const [editorData, setEditorData] = useState(data);
     // scale数量
@@ -284,8 +282,6 @@ export const Timeline = React.memo(
         const action = (e.target as HTMLElement)?.closest('.timeline-editor-action');
         if (action || hideCursor) return;
 
-        console.log('onClickTimeline = ', time);
-
         handleSetCursor({ time, updateTime: true });
       },
       [startLeft, scale, scaleWidth, hideCursor, handleSetCursor],
@@ -315,7 +311,6 @@ export const Timeline = React.memo(
       const containerEl = document.querySelector('.timeline-editor');
 
       const handleScroll = throttle((e: Event) => {
-        console.log('handleScroll', e);
         const scrollLeft = (e.target as HTMLElement).scrollLeft || 0;
         scrollSync.current && scrollSync.current.setState({ scrollLeft });
 
@@ -343,8 +338,6 @@ export const Timeline = React.memo(
         handleScroll.cancel();
       };
     }, [startLeft, scale, scaleWidth]);
-
-    console.log('Timeline cursorTime = ', cursorTime);
 
     return (
       <div ref={domRef} style={style} className={`${className || ''} ${theme || ''} ${PREFIX} ${disableDrag ? PREFIX + '-disable' : ''}`}>

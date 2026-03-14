@@ -62,9 +62,6 @@ export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCurs
   };
   const estColumnWidth=getColumnWidth({index:1});
 
-
-  console.log('estColumnWidth', estColumnWidth, ', scrollLeft = ', scrollLeft);
-
   return (
     <div className={prefix('time-area')}>
       <AutoSizer>
@@ -98,7 +95,6 @@ export const TimeArea: FC<TimeAreaProps> = ({ setCursor, maxScaleCount, hideCurs
 
                   const time = parserPixelToTime(left, { startLeft, scale, scaleWidth });
                   const result = onClickTimeArea && onClickTimeArea(time, e);
-                  console.log('TimeArea click = ', time);
                   if (result === false) return; // 返回 false 时阻止设置时间
                   setCursor({ time });
                 }}
