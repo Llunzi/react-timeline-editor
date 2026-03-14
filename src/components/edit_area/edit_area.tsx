@@ -294,19 +294,37 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
   }, [scrollTop]);
 
 
+  // 使用 ref 追踪 handleSelectionChange 的调用深度，避免无限循环
+  const selectionChangeDepthRef = useRef(0);
+
   // 框选功能
   const handleSelectionChange = useCallback(
     (selectedActionIds: string[]) => {
-      // 更新 editorData 中每个 action 的选中状态
-      const updatedData = editorData.map((row) => ({
-        ...row,
-        actions: row.actions.map((action) => ({
-          ...action,
-          selected: selectedActionIds.includes(action.id),
-        })),
-      }));
-      setEditorData(updatedData);
-      onMutiSelectChange?.(selectedActionIds);
+      // 如果调用深度过深（超过10层），说明可能存在无限循环，直接返回
+      if (selectionChangeDepthRef.current > 10) {
+        console.warn('Selection change depth exceeded, possible infinite loop detected');
+        return;
+      }
+
+      selectionChangeDepthRef.current++;
+
+      try {
+        // 更新 editorData 中每个 action 的选中状态
+        const updatedData = editorData.map((row) => ({
+          ...row,
+          actions: row.actions.map((action) => ({
+            ...action,
+            selected: selectedActionIds.includes(action.id),
+          })),
+        }));
+        setEditorData(updatedData);
+        onMutiSelectChange?.(selectedActionIds);
+      } finally {
+        // 延迟重置计数器，确保在 React 完成渲染后执行
+        setTimeout(() => {
+          selectionChangeDepthRef.current--;
+        }, 0);
+      }
     },
     [editorData, setEditorData, onMutiSelectChange],
   );

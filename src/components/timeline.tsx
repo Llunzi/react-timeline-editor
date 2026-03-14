@@ -208,8 +208,15 @@ export const Timeline = React.memo(
       const handleClickOutside = (e: MouseEvent) => {
         const target = e.target as HTMLElement;
 
-        const actionEl = target.closest('.timeline-editor-time-area') || target.closest('.timeline-editor-action');
-        if (actionEl) return;
+        const areaEl = target.closest('.timeline-editor-time-area');
+        if (areaEl) return;
+        const actionEl = target.closest('.timeline-editor-action');
+
+        if (actionEl) {
+          // @ts-expect-error 类型断言
+          props.onClickActionOnly?.(e, { action: { id: actionEl.dataset.actionId }});
+          return;
+        }
 
         engineRef.current.trigger('mousedown', {
           target,
@@ -229,7 +236,7 @@ export const Timeline = React.memo(
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
-    }, []);
+    }, [props.onClickActionOnly]);
 
     // ref 数据
     useImperativeHandle(ref, () => ({
