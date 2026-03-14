@@ -671,7 +671,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
               width={Math.max(scaleCount * scaleWidth + startLeft, width)}
               height={height}
               rowHeight={({ index }) => heights[index] || rowHeight || 0}
-              overscanRowCount={10}
+              overscanRowCount={100}
               overscanColumnCount={0}
               onScroll={(param) => {
                 onScroll(param);
