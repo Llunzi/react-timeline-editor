@@ -208,7 +208,7 @@ export const Timeline = React.memo(
       const handleClickOutside = (e: MouseEvent) => {
         const target = e.target as HTMLElement;
 
-        const actionEl = target.closest('.timeline-editor-time-area');
+        const actionEl = target.closest('.timeline-editor-time-area') || target.closest('.timeline-editor-action');
         if (actionEl) return;
 
         engineRef.current.trigger('mousedown', {
@@ -339,6 +339,8 @@ export const Timeline = React.memo(
       };
     }, [startLeft, scale, scaleWidth]);
 
+    let _totalHeight: number | string = editorData.reduce((prev, cur) => prev + (cur.rowHeight + 2 || 32), 0) + 32 + 24;
+
     return (
       <div ref={domRef} style={style} className={`${className || ''} ${theme || ''} ${PREFIX} ${disableDrag ? PREFIX + '-disable' : ''}`}>
         <ScrollSync ref={scrollSync}>
@@ -392,7 +394,7 @@ export const Timeline = React.memo(
                   />
                 ) : null}
                 {areaCount > 1 ? (
-                  <div id="time-editor-container" ref={containerRef} style={{ height: '100%', background: '#fff' }} onClick={throttledOnClickTimeline}>
+                  <div id="time-editor-container" ref={containerRef} style={{ height: _totalHeight, background: '#fff' }} onClick={throttledOnClickTimeline}>
                     {Object.keys(groupedData).map((key, index) => {
                       const handleGroupDataChange = (updatedData: TimelineRow[]) => {
                         const mergedData = editorData.filter((item) => String(item.type) !== key).concat(updatedData);
@@ -431,7 +433,7 @@ export const Timeline = React.memo(
                           setCursor={handleSetCursor}
                           deltaScrollLeft={autoScroll && handleDeltaScrollLeft}
                           allowCreateTrack={allowCreateTrack}
-                          minHeight={index === 0 ? 122 : _totalHeight}
+                          minHeight={index === 0 ? 122 : undefined}
                           containerRef={containerRef}
                           onMutiSelectChange={props?.onMutiSelectChange}
                           engineRef={engineRef}

@@ -588,7 +588,9 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     };
   }, [engineRef, uploadBgMusic, editorData]);
 
-  let _totalHeight: number | string = editorData.reduce((prev, cur) => prev + (cur.rowHeight || rowHeight), 0) + ((className || '').indexOf('1') > -1 ? 12 : 32);
+  let _totalHeight: number | string = editorData.reduce((prev, cur) => prev + (cur.rowHeight + 2 || rowHeight), 0) + ((className || '').indexOf('1') > -1 ? 12 : 32);
+
+  // console.log(_totalHeight, ', editorData = ', editorData);
   if (minHeight) {
     const calcHeight = `calc(100% - ${minHeight + 16}px)`;
     _totalHeight = `max(${_totalHeight}px, ${calcHeight})`;
