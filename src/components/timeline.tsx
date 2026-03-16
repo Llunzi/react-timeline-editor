@@ -142,20 +142,20 @@ export const Timeline = React.memo(
       [getMaxScrollLeft],
     );
 
-    useLayoutEffect(() => {
-      const maxScrollLeft = getMaxScrollLeft();
-      const currentScrollLeft = scrollSync.current?.state.scrollLeft ?? 0;
-      const nextScrollLeft = Math.min(Math.max(currentScrollLeft, 0), maxScrollLeft);
-      const timelineEl = document.querySelector('.timeline-editor') as HTMLElement | null;
+    // useLayoutEffect(() => {
+    //   const maxScrollLeft = getMaxScrollLeft();
+    //   const currentScrollLeft = scrollSync.current?.state.scrollLeft ?? 0;
+    //   const nextScrollLeft = Math.min(Math.max(currentScrollLeft, 0), maxScrollLeft);
+    //   const timelineEl = document.querySelector('.timeline-editor') as HTMLElement | null;
 
-      if (timelineEl && Math.abs(timelineEl.scrollLeft - nextScrollLeft) > 1) {
-        timelineEl.scrollLeft = nextScrollLeft;
-      }
+    //   if (timelineEl && Math.abs(timelineEl.scrollLeft - nextScrollLeft) > 1) {
+    //     timelineEl.scrollLeft = nextScrollLeft;
+    //   }
 
-      if (scrollSync.current && Math.abs(currentScrollLeft - nextScrollLeft) > 1) {
-        scrollSync.current.setState({ scrollLeft: nextScrollLeft });
-      }
-    }, [getMaxScrollLeft, scale, scaleWidth, scaleCount, width]);
+    //   if (scrollSync.current && Math.abs(currentScrollLeft - nextScrollLeft) > 1) {
+    //     scrollSync.current.setState({ scrollLeft: nextScrollLeft });
+    //   }
+    // }, [getMaxScrollLeft, scale, scaleWidth, scaleCount, width]);
 
     const handleInitDragLine = useCallback(
       (data: any) => {
