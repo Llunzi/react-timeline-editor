@@ -172,7 +172,6 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         return;
       }
       const uid = info.file.uid;
-      const duration = await getAudioDuration(info.file.response.url);
 
       const newAction: TimelineAction = {
         id: info.file.response?.id || uid,
@@ -180,7 +179,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
         flexible: true,
         url: info.file.response.url,
         start: currentMouseTime,
-        end: currentMouseTime + duration,
+        end: currentMouseTime + 1000,
         isUpload: true,
         segment_type: 'bgm',
         isUploading: false,
