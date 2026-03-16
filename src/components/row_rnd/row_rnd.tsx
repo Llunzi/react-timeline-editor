@@ -379,7 +379,9 @@ export const RowDnd = React.forwardRef<RowRndApi, RowRndProps>(
           const preLeft = parseFloat(left || '0');
           const preWidth = parseFloat(width || '0');
           deltaX.current += delta;
-          resize({ preLeft, preWidth, dir });
+          setTimeout(() => {
+            resize({ preLeft, preWidth, dir });
+          }, 0);
         });
         if (!result) return;
       }
@@ -389,7 +391,9 @@ export const RowDnd = React.forwardRef<RowRndApi, RowRndProps>(
       const preWidth = parseFloat(width || '0');
 
       deltaX.current += dir === 'left' ? e.deltaRect.left : e.deltaRect.right;
-      resize({ preLeft, preWidth, dir });
+        setTimeout(() => {
+            resize({ preLeft, preWidth, dir });
+          }, 0);
     };
     const handleResizeStop = (e: ResizeEvent) => {
       deltaX.current = 0;

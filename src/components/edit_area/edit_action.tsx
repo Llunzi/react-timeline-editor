@@ -308,6 +308,7 @@ const EditActionO: FC<EditActionProps> = ({
   const isMounted = useRef(true); // 组件挂载状态
   const { id, maxEnd, minStart, end, start, selected, flexible = true, movable = true, effectId } = action;
   const [dragging, setDragging] = useState(false);
+  const [resizing, setResizing] = useState(false);
 
   let originStart = start;
 
@@ -693,6 +694,7 @@ const EditActionO: FC<EditActionProps> = ({
 
   const handleResizeStart: RndResizeStartCallback = (dir) => {
     onActionResizeStart && onActionResizeStart({ action, row, dir });
+    setResizing(true);
   };
 
   const handleResizing: RndResizeCallback = (dir, { left, width }) => {
@@ -720,7 +722,7 @@ const EditActionO: FC<EditActionProps> = ({
     action.start = start;
     action.end = end;
     setEditorData(editorData);
-
+    setResizing(false);
     // 触发回调
     if (onActionResizeEnd) onActionResizeEnd({ action, row, start, end, dir, originalStart, originalEnd });
   };
@@ -848,7 +850,7 @@ const EditActionO: FC<EditActionProps> = ({
         className={prefix((classNames || []).join(' '))}
         style={{ height: rowHeight }}
       >
-        {getActionRender && getActionRender(nowAction, nowRow)}
+        {getActionRender && getActionRender(nowAction, nowRow, resizing)}
         {flexible && (
           <div className={prefix('action-left-stretch')}>
             <img src={stretchIcon} alt="" />

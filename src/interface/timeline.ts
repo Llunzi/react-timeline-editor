@@ -85,7 +85,7 @@ export interface EditData {
   /**
    * @description 自定义action区域渲染
    */
-  getActionRender?: (action: TimelineAction, row: TimelineRow) => ReactNode;
+  getActionRender?: (action: TimelineAction, row: TimelineRow, resizing?: boolean) => ReactNode;
   /**
    * @description 自定义scale渲染
    */
