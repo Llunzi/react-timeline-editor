@@ -213,8 +213,13 @@ export const Timeline = React.memo(
         const actionEl = target.closest('.timeline-editor-action');
 
         if (actionEl) {
-          // @ts-expect-error 类型断言
-          props.onClickActionOnly?.(e, { action: { id: actionEl.dataset.actionId }});
+          setTimeout(() => {
+            // @ts-expect-error 类型断言
+            if (actionEl?.dataset.actionDrag !== 'true') {
+              // @ts-expect-error 类型断言
+              props.onClickActionOnly?.(e, { action: { id: actionEl.dataset.actionId } });
+            }
+          }, 500);
           return;
         }
 

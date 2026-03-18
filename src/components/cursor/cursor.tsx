@@ -69,13 +69,13 @@ export const Cursor = React.forwardRef<CursorApi, CursorProps>((props, ref) => {
     },
   );
 
-  const clientHeight = document.querySelector('#time-editor-container')?.scrollHeight || 0;
+  const clientHeight = document.querySelector('.timeline-editor')?.clientHeight || 0;
 
   return (
     <RowDnd
       top={theme === 'light' ? 26 : 0}
       start={startLeft}
-      height={clientHeight}
+      height={Math.max(clientHeight - 26, 0)}
       ref={rowRnd}
       parentRef={areaRef}
       bounds={{
