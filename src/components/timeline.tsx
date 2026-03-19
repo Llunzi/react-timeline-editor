@@ -272,9 +272,8 @@ export const Timeline = React.memo(
         const containerEl = document.querySelector('.timeline-editor');
         if (!containerEl) return;
         const left = startLeft + (scaleWidth / scale) * val;
-        const nextScrollLeft = Math.min(Math.max(left, 0), getMaxScrollLeft());
-        containerEl.scrollLeft = nextScrollLeft;
-        scrollSync.current && scrollSync.current.setState({ scrollLeft: nextScrollLeft });
+        containerEl.scrollLeft = Math.max(left, 0);
+        scrollSync.current && scrollSync.current.setState({ scrollLeft: Math.max(left, 0) });
       },
       setScrollTop: (val) => {
         scrollSync.current && scrollSync.current.setState({ scrollTop: Math.max(val, 0) });
