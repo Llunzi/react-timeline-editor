@@ -400,6 +400,22 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     containerRef: editAreaRef,
   });
 
+  useEffect(() => {
+    const selectedIdsFromEditor = editorData.flatMap((row) =>
+      row.actions.filter((action) => action.selected).map((action) => action.id)
+    );
+    const normalizedSelectedIds = selectedIdsFromEditor.length > 1 ? selectedIdsFromEditor : [];
+    const hasSameSelection =
+      normalizedSelectedIds.length === selectedActionIds.length &&
+      normalizedSelectedIds.every((id) => selectedActionIds.includes(id));
+
+    if (hasSameSelection) {
+      return;
+    }
+
+    setSelectedActionIds(new Set(normalizedSelectedIds));
+  }, [editorData, selectedActionIds, setSelectedActionIds]);
+
   const { onDragStart, onDragMove, onDragEnd } = useRowDrag({
     selectedActionIds,
     editorData,
