@@ -59,6 +59,11 @@ type MultiDragPlacement = {
   conflicted: boolean;
 };
 
+type MultiDragPlan = {
+  placements: MultiDragPlacement[];
+  rows: TimelineRow[];
+};
+
 const resetMultiDragState = (): MultiDragState => ({
   isMultiDrag: false,
   primaryActionId: null,
@@ -72,6 +77,21 @@ const resetMultiDragState = (): MultiDragState => ({
 
 const cloneRows = (rows: TimelineRow[]) => rows.map((row) => ({ ...row, actions: [...row.actions] }));
 
+const createEmptyRow = ({
+  templateRow,
+  order,
+}: {
+  templateRow: TimelineRow;
+  order: number;
+}): TimelineRow => ({
+  ...templateRow,
+  id: `row_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+  actions: [],
+  order,
+  selected: false,
+  isPreview: false,
+});
+
 const removeActionFromRows = (rows: TimelineRow[], actionId: string) => {
   for (let i = 0; i < rows.length; i++) {
     const actionIndex = rows[i].actions.findIndex((item) => item.id === actionId);
@@ -83,109 +103,113 @@ const removeActionFromRows = (rows: TimelineRow[], actionId: string) => {
   return { rowIndex: -1, action: undefined as TimelineAction | undefined };
 };
 
-const ensureRowAtIndex = ({
-  rows,
-  targetIndex,
-  templateRow,
-}: {
-  rows: TimelineRow[];
-  targetIndex: number;
-  templateRow: TimelineRow;
-}) => {
-  const clampedIndex = Math.max(0, Math.min(targetIndex, rows.length));
-  if (clampedIndex < rows.length) return rows[clampedIndex];
-
-  const previousOrder = rows[rows.length - 1]?.order ?? templateRow.order ?? 0;
-  const newRow: TimelineRow = {
-    ...templateRow,
-    id: `row_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-    actions: [],
-    order: Number(previousOrder) + 0.01,
-  };
-  rows.push(newRow);
-  return newRow;
-};
-
-const findFirstAvailableRow = ({
-  rows,
-  targetIndex,
-  actionId,
-  start,
-  end,
-  templateRow,
-}: {
-  rows: TimelineRow[];
-  targetIndex: number;
-  actionId: string;
-  start: number;
-  end: number;
-  templateRow: TimelineRow;
-}) => {
-  const safeIndex = Math.max(0, targetIndex);
-  for (let i = safeIndex; i < rows.length; i++) {
-    const hasConflict = rows[i].actions.some((item) => item.id !== actionId && item.start < end && item.end > start);
-    if (!hasConflict) return rows[i];
-  }
-  return ensureRowAtIndex({ rows, targetIndex: rows.length, templateRow });
-};
-
 const buildMultiDragPlacements = ({
   editorData,
   initialPositions,
   selectedActionIds,
   timeOffset,
   rowDelta,
+  allowCreateTrack,
 }: {
   editorData: TimelineRow[];
   initialPositions: Map<string, StoredActionPosition>;
   selectedActionIds: string[];
   timeOffset: number;
   rowDelta: number;
-}): MultiDragPlacement[] => {
+  allowCreateTrack: boolean;
+}): MultiDragPlan => {
   const selectedSet = new Set(selectedActionIds);
-
-  return selectedActionIds
+  const selectedInitials = selectedActionIds
     .map((actionId) => {
       const initial = initialPositions.get(actionId);
-      if (!initial) return null;
+      return initial ? { actionId, initial } : null;
+    })
+    .filter(Boolean) as Array<{ actionId: string; initial: StoredActionPosition }>;
 
-      const candidateRow = editorData[initial.rowIndex + rowDelta];
-      const nextStart = initial.start + timeOffset;
-      const nextEnd = initial.end + timeOffset;
+  if (selectedInitials.length === 0) {
+    return { placements: [], rows: editorData };
+  }
 
-      if (!candidateRow) {
-        return {
-          actionId,
-          rowId: initial.rowId,
-          start: initial.start,
-          end: initial.end,
-          conflicted: true,
-        };
-      }
+  const targetIndexes = selectedInitials.map(({ initial }) => initial.rowIndex + rowDelta);
+  const minTargetIndex = Math.min(...targetIndexes);
+  const maxTargetIndex = Math.max(...targetIndexes);
+  const prependCount = minTargetIndex < 0 ? -minTargetIndex : 0;
+  const appendCount = maxTargetIndex >= editorData.length ? maxTargetIndex - editorData.length + 1 : 0;
 
-      const hasConflict = candidateRow.actions.some(
-        (item) => !selectedSet.has(item.id) && item.start < nextEnd && item.end > nextStart,
-      );
+  if (!allowCreateTrack && (prependCount > 0 || appendCount > 0)) {
+    return {
+      rows: editorData,
+      placements: selectedInitials.map(({ actionId, initial }) => ({
+        actionId,
+        rowId: initial.rowId,
+        start: initial.start,
+        end: initial.end,
+        conflicted: true,
+      })),
+    };
+  }
 
-      if (hasConflict) {
-        return {
-          actionId,
-          rowId: initial.rowId,
-          start: initial.start,
-          end: initial.end,
-          conflicted: true,
-        };
-      }
+  const minOrder = Math.min(...editorData.map((row) => Number(row.order ?? 0)));
+  const maxOrder = Math.max(...editorData.map((row) => Number(row.order ?? 0)));
+  const prependTemplateRow = editorData[0];
+  const appendTemplateRow = editorData[editorData.length - 1];
 
+  const prependRows = Array.from({ length: prependCount }, (_, index) =>
+    createEmptyRow({
+      templateRow: prependTemplateRow,
+      order: minOrder - prependCount + index,
+    })
+  );
+  const appendRows = Array.from({ length: appendCount }, (_, index) =>
+    createEmptyRow({
+      templateRow: appendTemplateRow,
+      order: maxOrder + index + 1,
+    })
+  );
+  const expandedRows = [...prependRows, ...editorData, ...appendRows];
+
+  const placements = selectedInitials.map(({ actionId, initial }) => {
+    const candidateRow = expandedRows[initial.rowIndex + rowDelta + prependCount];
+    const nextStart = initial.start + timeOffset;
+    const nextEnd = initial.end + timeOffset;
+
+    if (!candidateRow) {
       return {
         actionId,
-        rowId: candidateRow.id,
-        start: nextStart,
-        end: nextEnd,
-        conflicted: false,
+        rowId: initial.rowId,
+        start: initial.start,
+        end: initial.end,
+        conflicted: true,
       };
-    })
-    .filter(Boolean) as MultiDragPlacement[];
+    }
+
+    const hasConflict = candidateRow.actions.some(
+      (item) => !selectedSet.has(item.id) && item.start < nextEnd && item.end > nextStart,
+    );
+
+    if (hasConflict) {
+      return {
+        actionId,
+        rowId: initial.rowId,
+        start: initial.start,
+        end: initial.end,
+        conflicted: true,
+      };
+    }
+
+    return {
+      actionId,
+      rowId: candidateRow.id,
+      start: nextStart,
+      end: nextEnd,
+      conflicted: false,
+    };
+  });
+
+  return {
+    placements,
+    rows: expandedRows,
+  };
 };
 
 export const useRowDrag = (options: UseRowDragOptions) => {
@@ -197,6 +221,7 @@ export const useRowDrag = (options: UseRowDragOptions) => {
     scaleWidth = 160,
     startLeft = 20,
     setEditorData,
+    allowCreateTrack = true,
     rowHeight = 35,
     onUpdateEditorData,
   } = options;
@@ -375,12 +400,13 @@ export const useRowDrag = (options: UseRowDragOptions) => {
       return;
     }
 
-    const placements = buildMultiDragPlacements({
+    const { placements, rows: plannedRows } = buildMultiDragPlacements({
       editorData,
       initialPositions,
       selectedActionIds,
       timeOffset,
       rowDelta,
+      allowCreateTrack,
     });
     const hasConflict = placements.some((placement) => placement.conflicted);
     if (hasConflict) {
@@ -388,7 +414,7 @@ export const useRowDrag = (options: UseRowDragOptions) => {
       return;
     }
 
-    const rows = cloneRows(editorData);
+    const rows = cloneRows(plannedRows);
     const updatedActions: TimelineAction[] = [];
     const removedActions = new Map<string, TimelineAction>();
 
@@ -435,7 +461,7 @@ export const useRowDrag = (options: UseRowDragOptions) => {
     }
 
     multiDragState.current = resetMultiDragState();
-  }, [editorData, getSelectedActionEls, onUpdateEditorData, rowHeight, scale, scaleWidth, selectedActionIds, setEditorData, startLeft]);
+  }, [allowCreateTrack, editorData, getSelectedActionEls, onUpdateEditorData, rowHeight, scale, scaleWidth, selectedActionIds, setEditorData, startLeft]);
 
   // 检查是否是多选拖拽模式
   const isMultiDragging = React.useCallback((): boolean => {

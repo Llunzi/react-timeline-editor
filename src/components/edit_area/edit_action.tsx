@@ -149,12 +149,14 @@ const hasMultiDragConflict = ({
   primaryAction,
   timeOffset,
   rowDelta,
+  allowCreateTrack,
 }: {
   editorData: TimelineRow[];
   selectedActionIds: string[];
   primaryAction: TimelineAction;
   timeOffset: number;
   rowDelta: number;
+  allowCreateTrack: boolean;
 }) => {
   const selectedSet = new Set(selectedActionIds);
 
@@ -174,7 +176,7 @@ const hasMultiDragConflict = ({
     if (!initialAction || sourceRowIndex < 0) return true;
 
     const targetRow = editorData[sourceRowIndex + rowDelta];
-    if (!targetRow) return true;
+    if (!targetRow) return !allowCreateTrack;
 
     const nextStart = initialAction.start + timeOffset;
     const nextEnd = initialAction.end + timeOffset;
@@ -424,6 +426,7 @@ const EditActionO: FC<EditActionProps> = ({
           primaryAction: action,
           timeOffset: currentRange.start - action.start,
           rowDelta: Math.round((top || 0) / rowHeight),
+          allowCreateTrack,
         })
       : false;
 
