@@ -11,7 +11,7 @@ import { useRowSelection } from './hooks/use_row_selection';
 import { type UploadProps } from 'antd/es';
 import { message } from 'antd/es';
 import { Howl } from 'howler';
-import { useRowDrag } from './hooks/use_row_drag';
+import { useRowDrag, type MultiDragPlan } from './hooks/use_row_drag';
 import { ITimelineEngine } from '@/engine/engine';
 
 // 获取音频时长
@@ -199,6 +199,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
 
   // ---- drag overlay: imperative DOM updates to avoid React re-renders on every mousemove ----
   const insertPreviewDomRef = useRef<HTMLDivElement>(null);
+  const multiInsertPreviewDomRef = useRef<HTMLDivElement>(null);
   const trackPreviewRowDomRef = useRef<HTMLDivElement>(null);
   const trackPreviewLineDomRef = useRef<HTMLDivElement>(null);
   const dragIndicatorDomRef = useRef<HTMLDivElement>(null);
@@ -207,6 +208,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
   const insertPreviewDataRef = useRef<{
     actionId: string; rowId: string; start: number; end: number; shiftByActionId: Record<string, number>;
   } | null>(null);
+  const multiInsertPreviewDataRef = useRef<MultiDragPlan | null>(null);
   const trackPreviewDataRef = useRef<
     | { kind: 'row'; rowId: string }
     | { kind: 'new-row'; insertIndex: number; sourceRow: TimelineRow }
@@ -235,6 +237,65 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     div.style.width = `${t.width}px`;
     div.style.top = `${top - st + 18}px`;
     div.style.height = `${Math.max(rowH - 4, 8)}px`;
+  }, []);
+
+  const setMultiInsertPreview = useCallback((plan: MultiDragPlan | null) => {
+    multiInsertPreviewDataRef.current = plan;
+    const container = multiInsertPreviewDomRef.current;
+    if (!container) return;
+
+    if (!plan || plan.placements.length === 0) {
+      container.style.display = 'none';
+      Array.from(container.children).forEach((node) => {
+        (node as HTMLElement).style.display = 'none';
+      });
+      return;
+    }
+
+    const { scrollTop: st, startLeft: sl, scale: sc, scaleWidth: sw, rowHeight: rh } = liveRef.current;
+    const rowIndexMap = new Map(plan.rows.map((row, index) => [row.id, index]));
+    const placements = plan.placements;
+
+    while (container.children.length < placements.length) {
+      const previewNode = document.createElement('div');
+      previewNode.style.position = 'absolute';
+      previewNode.style.background = 'rgba(160, 160, 160, 0.12)';
+      previewNode.style.border = '1.5px dashed rgba(150, 150, 150, 0.7)';
+      previewNode.style.borderRadius = '8px';
+      previewNode.style.zIndex = '1000';
+      previewNode.style.pointerEvents = 'none';
+      container.appendChild(previewNode);
+    }
+
+    Array.from(container.children).forEach((node, index) => {
+      const previewNode = node as HTMLElement;
+      const placement = placements[index];
+      if (!placement) {
+        previewNode.style.display = 'none';
+        return;
+      }
+
+      const targetIndex = rowIndexMap.get(placement.rowId);
+      if (targetIndex === undefined) {
+        previewNode.style.display = 'none';
+        return;
+      }
+
+      let top = 0;
+      for (let i = 0; i < targetIndex; i++) {
+        top += (plan.rows[i].rowHeight || rh) + 2;
+      }
+      const rowH = plan.rows[targetIndex]?.rowHeight || rh;
+      const t = parserTimeToTransform({ start: placement.start, end: placement.end }, { startLeft: sl, scale: sc, scaleWidth: sw });
+
+      previewNode.style.display = 'block';
+      previewNode.style.left = `${t.left}px`;
+      previewNode.style.width = `${t.width}px`;
+      previewNode.style.top = `${top - st + 18}px`;
+      previewNode.style.height = `${Math.max(rowH - 4, 8)}px`;
+    });
+
+    container.style.display = 'block';
   }, []);
 
   const setTrackPreview = useCallback((preview: typeof trackPreviewDataRef['current']) => {
@@ -288,9 +349,10 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
   // Re-apply overlay positions whenever scroll changes during an active drag
   useLayoutEffect(() => {
     if (insertPreviewDataRef.current) setInsertPreview(insertPreviewDataRef.current);
+    if (multiInsertPreviewDataRef.current) setMultiInsertPreview(multiInsertPreviewDataRef.current);
     if (trackPreviewDataRef.current) setTrackPreview(trackPreviewDataRef.current);
     if (dragIndicatorDataRef.current) setDragIndicator(dragIndicatorDataRef.current);
-  }, [scrollTop]);
+  }, [scrollTop, setInsertPreview, setMultiInsertPreview, setTrackPreview, setDragIndicator]);
 
 
   // 使用 ref 追踪 handleSelectionChange 的调用深度，避免无限循环
@@ -349,6 +411,7 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
     allowCreateTrack,
     rowHeight,
     onUpdateEditorData,
+    onPreviewChange: setMultiInsertPreview,
   });
 
   // 监听拖拽位置指示器事件（命令式 DOM，不触发 React 重渲染）
@@ -698,6 +761,16 @@ const EditAreaO = React.forwardRef<EditAreaState, EditAreaProps>((props, ref) =>
       </AutoSizer>
       <DragSelection />
       {/* Drag overlays: always in DOM, positions updated imperatively to avoid React re-renders */}
+      <div
+        ref={multiInsertPreviewDomRef}
+        style={{
+          display: 'none',
+          position: 'absolute',
+          inset: 0,
+          zIndex: 1000,
+          pointerEvents: 'none',
+        }}
+      />
       <div
         ref={trackPreviewLineDomRef}
         style={{

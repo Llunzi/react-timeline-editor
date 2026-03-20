@@ -17,6 +17,7 @@ export interface UseRowDragOptions {
   allowCreateTrack?: boolean;
   rowHeight?: number;
   onUpdateEditorData?: (editorData: TimelineRow, actions: TimelineAction[]) => void;
+  onPreviewChange?: (plan: MultiDragPlan | null) => void;
 }
 
 export interface MultiDragState {
@@ -59,10 +60,35 @@ type MultiDragPlacement = {
   conflicted: boolean;
 };
 
-type MultiDragPlan = {
+export type MultiDragPlan = {
   placements: MultiDragPlacement[];
   rows: TimelineRow[];
 };
+
+const buildResetPreviewPlan = ({
+  editorData,
+  initialPositions,
+  selectedActionIds,
+}: {
+  editorData: TimelineRow[];
+  initialPositions: Map<string, StoredActionPosition>;
+  selectedActionIds: string[];
+}): MultiDragPlan => ({
+  rows: editorData,
+  placements: selectedActionIds
+    .map((actionId) => {
+      const initial = initialPositions.get(actionId);
+      if (!initial) return null;
+      return {
+        actionId,
+        rowId: initial.rowId,
+        start: initial.start,
+        end: initial.end,
+        conflicted: true,
+      };
+    })
+    .filter(Boolean) as MultiDragPlacement[],
+});
 
 const resetMultiDragState = (): MultiDragState => ({
   isMultiDrag: false,
@@ -224,6 +250,7 @@ export const useRowDrag = (options: UseRowDragOptions) => {
     allowCreateTrack = true,
     rowHeight = 35,
     onUpdateEditorData,
+    onPreviewChange,
   } = options;
 
   // 多选拖拽状态
@@ -327,11 +354,15 @@ export const useRowDrag = (options: UseRowDragOptions) => {
     const state = multiDragState.current;
 
     if (!state.isMultiDrag || !state.isDraggingSelection || !state.initialElementPositions) {
+      onPreviewChange?.(null);
       return;
     }
 
     const selectedEls = getSelectedActionEls();
-    if (selectedEls.length === 0) return;
+    if (selectedEls.length === 0) {
+      onPreviewChange?.(null);
+      return;
+    }
 
     state.offsetX = params.gap ?? 0;
     state.offsetY = (state.offsetY || 0) + dy;
@@ -350,7 +381,41 @@ export const useRowDrag = (options: UseRowDragOptions) => {
       el.setAttribute('data-x', newX.toString());
       el.setAttribute('data-y', newY.toString());
     });
-  }, [getSelectedActionEls]);
+
+    if (actionId !== state.primaryActionId) return;
+
+    const primaryInitial = state.initialPositions.get(actionId);
+    if (!primaryInitial) {
+      onPreviewChange?.(null);
+      return;
+    }
+
+    const primaryFinalTime = parserTransformToTime({ left: params.left, width: params.width }, { startLeft, scale, scaleWidth });
+    const timeOffset = primaryFinalTime.start - primaryInitial.start;
+    const rowDelta = Math.round((params.top || 0) / rowHeight);
+
+    const plan = buildMultiDragPlacements({
+      editorData,
+      initialPositions: state.initialPositions,
+      selectedActionIds,
+      timeOffset,
+      rowDelta,
+      allowCreateTrack,
+    });
+
+    if (plan.placements.some((placement) => placement.conflicted)) {
+      onPreviewChange?.(
+        buildResetPreviewPlan({
+          editorData,
+          initialPositions: state.initialPositions,
+          selectedActionIds,
+        })
+      );
+      return;
+    }
+
+    onPreviewChange?.(plan);
+  }, [allowCreateTrack, editorData, getSelectedActionEls, onPreviewChange, rowHeight, scale, scaleWidth, selectedActionIds, startLeft]);
 
   // 拖拽结束
   const onDragEnd = React.useCallback((params?: {
@@ -373,6 +438,7 @@ export const useRowDrag = (options: UseRowDragOptions) => {
       el.removeAttribute('data-y');
       el.style.transform = '';
     });
+    onPreviewChange?.(null);
 
     if (!state.isMultiDrag || !params || params?.actionId !== state.primaryActionId) {
       multiDragState.current = resetMultiDragState();
@@ -461,7 +527,7 @@ export const useRowDrag = (options: UseRowDragOptions) => {
     }
 
     multiDragState.current = resetMultiDragState();
-  }, [allowCreateTrack, editorData, getSelectedActionEls, onUpdateEditorData, rowHeight, scale, scaleWidth, selectedActionIds, setEditorData, startLeft]);
+  }, [allowCreateTrack, editorData, getSelectedActionEls, onPreviewChange, onUpdateEditorData, rowHeight, scale, scaleWidth, selectedActionIds, setEditorData, startLeft]);
 
   // 检查是否是多选拖拽模式
   const isMultiDragging = React.useCallback((): boolean => {
